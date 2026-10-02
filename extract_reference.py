@@ -29,6 +29,9 @@ session = fastf1.get_session(2021, 'Abu Dhabi', 'R') # 2021 Abu Dhabi GP Race
 
 import os
 import fastf1
+import numpy as np
+import pandas as pd
+from scipy.interpolate import interp1d
 
 def DownloadSessionData(Year: int, GrandPrix: str, SessionType: str, Driver: str):
     """
@@ -71,10 +74,81 @@ def DownloadSessionData(Year: int, GrandPrix: str, SessionType: str, Driver: str
         print(f"An error occurred while fetching the data: {e}")
         return None
 
+def ResampleTelemetry(telemetryData: pd.DataFrame) -> pd.DataFrame:
+    """
+    Task 1.2: Distance-Domain Resampling
+    
+    FastF1 data is sampled based on time, meaning the distance between samples varies
+    with the car's speed. To compare our simulator lap directly to the reference lap,
+    we need to align them on a common X-axis: distance in meters.
+    
+    This function interpolates the raw telemetry so we get exactly one sample for
+    every 1 meter of the track length.
+    
+    Args:
+        telemetryData (pd.DataFrame): The raw telemetry DataFrame from FastF1.
+        
+    Returns:
+        pd.DataFrame: A new DataFrame with distance uniformly spaced from 0 to lap length.
+    """
+    # Extract the distance array from the raw telemetry.
+    # We create a mask for strictly increasing distances since interp1d requires a strictly monotonic x-axis.
+    mask = telemetryData['Distance'].diff() > 0
+    # The first row will be NaN after diff(), so we set it to True
+    mask.iloc[0] = True
+    
+    cleanTelemetry = telemetryData[mask]
+    originalDistance = cleanTelemetry['Distance'].values
+    
+    # Define our new equidistant distance array: 0, 1, 2, ..., Max Distance (1-meter intervals)
+    maxDistance = int(np.floor(originalDistance[-1]))
+    uniformDistance = np.arange(0, maxDistance + 1, 1) 
+    
+    resampledData = {'Distance': uniformDistance}
+    
+    # List of columns we want to interpolate
+    columnsToInterpolate = ['Speed', 'Throttle', 'Brake', 'RPM', 'nGear', 'Time']
+    
+    for col in columnsToInterpolate:
+        if col == 'Time':
+            # FastF1 Time is a timedelta. We convert to seconds (float) for interpolation.
+            originalValues = cleanTelemetry['Time'].dt.total_seconds().values
+        else:
+            originalValues = cleanTelemetry[col].values
+            
+        # Create a linear interpolation function for this specific column
+        # fill_value="extrapolate" handles any tiny edge cases at the start/end of the lap
+        interpFunction = interp1d(originalDistance, originalValues, kind='linear', fill_value="extrapolate")
+        
+        # Calculate the new values at our 1-meter intervals
+        resampledValues = interpFunction(uniformDistance)
+        
+        if col == 'nGear':
+            # Gears are discrete integers, so we round them after interpolation
+            resampledData['nGear'] = np.round(resampledValues).astype(int)
+        else:
+            resampledData[col] = resampledValues
+            
+    # Convert back to a DataFrame for Task 1.3
+    return pd.DataFrame(resampledData)
+
 if __name__ == "__main__":
     # Task 1.1 Execution: Download Lewis Hamilton's 2023 Italian GP qualifying lap
     # Parameters: Year=2023, Location='Monza', Session='Q', Driver='HAM'
     telemetryData = DownloadSessionData(2023, 'Monza', 'Q', 'HAM')
     
     if telemetryData is not None:
-        print("\nRaw telemetry downloaded successfully.")
+        print(f"\nTask 1.1 Complete: Raw telemetry downloaded successfully. (Rows: {len(telemetryData)})")
+        
+        # Task 1.2 Execution: Resample to 1-meter intervals
+        resampledTelemetry = ResampleTelemetry(telemetryData)
+        
+        print("\nTask 1.2 Complete: Telemetry resampled to equidistant 1-meter intervals.")
+        print(f"Resampled Rows: {len(resampledTelemetry)}")
+        print("\n--- Test Verification: Sample of resampled data (Distance 600m to 605m) ---")
+        
+        # Test validation to confirm it worked according to the plan
+        testDistanceRange = resampledTelemetry[
+            (resampledTelemetry['Distance'] >= 600) & (resampledTelemetry['Distance'] <= 605)
+        ]
+        print(testDistanceRange[['Distance', 'Speed', 'Brake', 'nGear']].to_string(index=False))
