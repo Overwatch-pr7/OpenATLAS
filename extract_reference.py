@@ -132,6 +132,24 @@ def ResampleTelemetry(telemetryData: pd.DataFrame) -> pd.DataFrame:
     # Convert back to a DataFrame for Task 1.3
     return pd.DataFrame(resampledData)
 
+def ExportToParquet(df: pd.DataFrame, filename: str):
+    """
+    Task 1.3: Export telemetry to Parquet format.
+    Downcasts data types to save memory and improve load speeds.
+    """
+    # Downcast types to save memory (telemetry rarely needs float64)
+    df['Distance'] = df['Distance'].astype('int32')
+    df['Speed'] = df['Speed'].astype('float32')
+    df['Throttle'] = df['Throttle'].astype('int8')
+    df['Brake'] = df['Brake'].astype('int8')
+    df['RPM'] = df['RPM'].astype('int32')
+    df['nGear'] = df['nGear'].astype('int8')
+    df['Time'] = df['Time'].astype('float32')
+    
+    # Export to Parquet using the PyArrow engine
+    df.to_parquet(filename, engine='pyarrow', index=False)
+    print(f"Successfully exported to {filename}")
+
 if __name__ == "__main__":
     # Task 1.1 Execution: Download Lewis Hamilton's 2023 Italian GP qualifying lap
     # Parameters: Year=2023, Location='Monza', Session='Q', Driver='HAM'
@@ -152,3 +170,7 @@ if __name__ == "__main__":
             (resampledTelemetry['Distance'] >= 600) & (resampledTelemetry['Distance'] <= 605)
         ]
         print(testDistanceRange[['Distance', 'Speed', 'Brake', 'nGear']].to_string(index=False))
+        
+        # Task 1.3 Execution: Export to Parquet
+        print("\nStarting Task 1.3: Exporting to Parquet...")
+        ExportToParquet(resampledTelemetry, 'monza_reference_lap.parquet')
