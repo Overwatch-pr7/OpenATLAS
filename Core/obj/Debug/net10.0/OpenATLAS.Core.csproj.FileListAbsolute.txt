@@ -1,0 +1,12 @@
+C:\Users\SOHAM\Desktop\OpenATLAS\Core\bin\Debug\net10.0\OpenATLAS.Core.deps.json
+C:\Users\SOHAM\Desktop\OpenATLAS\Core\bin\Debug\net10.0\OpenATLAS.Core.dll
+C:\Users\SOHAM\Desktop\OpenATLAS\Core\bin\Debug\net10.0\OpenATLAS.Core.pdb
+C:\Users\SOHAM\Desktop\OpenATLAS\Core\obj\Debug\net10.0\OpenATLAS.Core.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\SOHAM\Desktop\OpenATLAS\Core\obj\Debug\net10.0\OpenATLAS.Core.AssemblyInfoInputs.cache
+C:\Users\SOHAM\Desktop\OpenATLAS\Core\obj\Debug\net10.0\OpenATLAS.Core.AssemblyInfo.cs
+C:\Users\SOHAM\Desktop\OpenATLAS\Core\obj\Debug\net10.0\OpenATLAS.Core.csproj.CoreCompileInputs.cache
+C:\Users\SOHAM\Desktop\OpenATLAS\Core\obj\Debug\net10.0\OpenATLAS.Core.sourcelink.json
+C:\Users\SOHAM\Desktop\OpenATLAS\Core\obj\Debug\net10.0\OpenATLAS.Core.dll
+C:\Users\SOHAM\Desktop\OpenATLAS\Core\obj\Debug\net10.0\refint\OpenATLAS.Core.dll
+C:\Users\SOHAM\Desktop\OpenATLAS\Core\obj\Debug\net10.0\OpenATLAS.Core.pdb
+C:\Users\SOHAM\Desktop\OpenATLAS\Core\obj\Debug\net10.0\ref\OpenATLAS.Core.dll
