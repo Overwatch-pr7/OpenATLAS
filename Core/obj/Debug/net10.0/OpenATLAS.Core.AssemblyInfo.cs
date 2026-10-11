@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("OpenATLAS.Core")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+95a68a4c59afc12f3419a3f1617c1d73865adba7")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+fc19aac5737aab83061083dc0a38e3bd890857d8")]
 [assembly: System.Reflection.AssemblyProductAttribute("OpenATLAS.Core")]
 [assembly: System.Reflection.AssemblyTitleAttribute("OpenATLAS.Core")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

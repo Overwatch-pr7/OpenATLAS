@@ -11,14 +11,14 @@ namespace OpenATLAS.Core.Network
     public class UdpTelemetryListener : IDisposable
     {
         private readonly int _port;
-        private UdpClient _udpClient;
-        private CancellationTokenSource _cts;
+        private UdpClient? _udpClient;
+        private CancellationTokenSource? _cts;
         
         // We pre-allocate a 256-byte buffer exactly once. 
         // This avoids memory allocations (and thus garbage collection freezes) in the 60Hz loop.
         private readonly byte[] _buffer = new byte[256];
         
-        public event Action<byte[]> OnPacketReceived;
+        public event Action<byte[]>? OnPacketReceived;
 
         public UdpTelemetryListener(int port = 9996)
         {
@@ -38,6 +38,8 @@ namespace OpenATLAS.Core.Network
         {
             try
             {
+                if (_udpClient == null) return;
+
                 while (!token.IsCancellationRequested)
                 {
                     // Using normal `UdpClient.Receive()` creates a new byte[] for every packet.

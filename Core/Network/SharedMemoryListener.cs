@@ -8,12 +8,13 @@ using OpenATLAS.Core.Models;
 namespace OpenATLAS.Core.Network
 {
     // Task 2.2 & 2.3: Shared Memory Listener & Marshaling
+    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
     public class SharedMemoryListener : IDisposable
     {
-        private MemoryMappedFile _mmf;
-        private CancellationTokenSource _cts;
+        private MemoryMappedFile? _mmf;
+        private CancellationTokenSource? _cts;
         
-        public event Action<AcPhysicsPacket> OnTelemetryUpdated;
+        public event Action<AcPhysicsPacket>? OnTelemetryUpdated;
 
         public void Start()
         {
