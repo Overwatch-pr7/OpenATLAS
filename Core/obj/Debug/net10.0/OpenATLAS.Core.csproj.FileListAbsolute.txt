@@ -10,3 +10,4 @@ C:\Users\SOHAM\Desktop\OpenATLAS\Core\obj\Debug\net10.0\OpenATLAS.Core.dll
 C:\Users\SOHAM\Desktop\OpenATLAS\Core\obj\Debug\net10.0\refint\OpenATLAS.Core.dll
 C:\Users\SOHAM\Desktop\OpenATLAS\Core\obj\Debug\net10.0\OpenATLAS.Core.pdb
 C:\Users\SOHAM\Desktop\OpenATLAS\Core\obj\Debug\net10.0\ref\OpenATLAS.Core.dll
+C:\Users\SOHAM\Desktop\OpenATLAS\Core\obj\Debug\net10.0\OpenATLAS.Core.csproj.AssemblyReference.cache

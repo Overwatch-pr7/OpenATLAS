@@ -99,3 +99,9 @@ C:\Users\SOHAM\Desktop\OpenATLAS\Tests\obj\Debug\net10.0\refint\OpenATLAS.Tests.
 C:\Users\SOHAM\Desktop\OpenATLAS\Tests\obj\Debug\net10.0\OpenATLAS.Tests.pdb
 C:\Users\SOHAM\Desktop\OpenATLAS\Tests\obj\Debug\net10.0\OpenATLAS.Tests.genruntimeconfig.cache
 C:\Users\SOHAM\Desktop\OpenATLAS\Tests\obj\Debug\net10.0\ref\OpenATLAS.Tests.dll
+C:\Users\SOHAM\Desktop\OpenATLAS\Tests\bin\Debug\net10.0\CommunityToolkit.HighPerformance.dll
+C:\Users\SOHAM\Desktop\OpenATLAS\Tests\bin\Debug\net10.0\K4os.Compression.LZ4.dll
+C:\Users\SOHAM\Desktop\OpenATLAS\Tests\bin\Debug\net10.0\Microsoft.IO.RecyclableMemoryStream.dll
+C:\Users\SOHAM\Desktop\OpenATLAS\Tests\bin\Debug\net10.0\Parquet.dll
+C:\Users\SOHAM\Desktop\OpenATLAS\Tests\bin\Debug\net10.0\Snappier.dll
+C:\Users\SOHAM\Desktop\OpenATLAS\Tests\bin\Debug\net10.0\ZstdSharp.dll
