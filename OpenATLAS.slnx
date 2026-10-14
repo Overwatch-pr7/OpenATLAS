@@ -8,4 +8,7 @@
   <Folder Name="/Tests/">
     <Project Path="Tests/OpenATLAS.Tests.csproj" />
   </Folder>
+  <Folder Name="/Workbench/">
+    <Project Path="Workbench/OpenATLAS.Workbench.csproj" />
+  </Folder>
 </Solution>

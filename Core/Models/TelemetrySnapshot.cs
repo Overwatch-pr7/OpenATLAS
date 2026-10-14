@@ -27,7 +27,7 @@ namespace OpenATLAS.Core.Models
             float brake,
             int gear,
             int rpms,
-            float steerAngle,
+            float steerAngle = 0f,
             float deltaTime = 0f)
         {
             TimestampSeconds = timestampSeconds;

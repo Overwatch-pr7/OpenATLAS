@@ -1,0 +1,708 @@
+<Window x:Class="OpenATLAS.Workbench.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="clr-namespace:OpenATLAS.Workbench.ViewModels"
+        mc:Ignorable="d"
+        Title="OpenATLAS - Trackside Telemetry &amp; Delta Analysis Workbench"
+        Width="1366" Height="860"
+        MinWidth="1024" MinHeight="640"
+        WindowStartupLocation="CenterScreen"
+        Background="{StaticResource CanvasBackgroundBrush}"
+        Foreground="{StaticResource ForegroundPrimaryBrush}"
+        FontFamily="{StaticResource SystemFontFamily}">
+
+    <Window.Resources>
+        <!-- Dynamic Delta Color Style based on whether driver is ahead or behind baseline -->
+        <Style x:Key="DynamicDeltaStyle" TargetType="TextBlock" BasedOn="{StaticResource DeltaReadoutText}">
+            <Setter Property="Foreground" Value="{StaticResource DeltaAheadBrush}" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsAheadOfReference}" Value="False">
+                    <Setter Property="Foreground" Value="{StaticResource DeltaBehindBrush}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- Speed Delta Color Style -->
+        <Style x:Key="SpeedDeltaStyle" TargetType="TextBlock" BasedOn="{StaticResource TelemetryValueText}">
+            <Setter Property="Foreground" Value="{StaticResource ForegroundHighlightBrush}" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsAheadOfReference}" Value="True">
+                    <Setter Property="Foreground" Value="{StaticResource DeltaAheadBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding IsAheadOfReference}" Value="False">
+                    <Setter Property="Foreground" Value="{StaticResource DeltaBehindBrush}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <!-- Row 0: Top Command & Session Bar -->
+            <RowDefinition Height="46" />
+            <!-- Row 1: Main Work Area (Trace Panes + Telemetry Sidebar) -->
+            <RowDefinition Height="*" />
+            <!-- Row 2: Bottom Engineering Status Bar -->
+            <RowDefinition Height="28" />
+        </Grid.RowDefinitions>
+
+        <!-- ========================================================================= -->
+        <!-- ROW 0: TOP COMMAND & SESSION HEADER                                       -->
+        <!-- ========================================================================= -->
+        <Border Grid.Row="0"
+                Background="{StaticResource HeaderBackgroundBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,0,0,1"
+                Padding="14,0">
+            <Grid VerticalAlignment="Center">
+                <Grid.ColumnDefinitions>
+                    <!-- Brand & Workbench Name -->
+                    <ColumnDefinition Width="Auto" />
+                    <!-- Reference Baseline Session Info -->
+                    <ColumnDefinition Width="*" />
+                    <!-- Telemetry Controls & Status Badge -->
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <!-- Brand / Logo -->
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,24,0">
+                    <TextBlock Text="OPENATLAS"
+                               FontFamily="{StaticResource SystemFontFamily}"
+                               FontSize="14"
+                               FontWeight="Bold"
+                               Foreground="{StaticResource LiveTraceBrush}"
+                               VerticalAlignment="Center" />
+                    <TextBlock Text=" | TELEMETRY WORKBENCH"
+                               FontFamily="{StaticResource SystemFontFamily}"
+                               FontSize="11"
+                               FontWeight="SemiBold"
+                               Foreground="{StaticResource ForegroundMutedBrush}"
+                               VerticalAlignment="Center"
+                               Margin="6,0,0,0" />
+                </StackPanel>
+
+                <!-- Center Session Info Banner -->
+                <Border Grid.Column="1"
+                        Background="{StaticResource CanvasBackgroundBrush}"
+                        BorderBrush="{StaticResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="0"
+                        HorizontalAlignment="Center"
+                        Padding="14,4">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="BASELINE: "
+                                   Style="{StaticResource TelemetryLabelText}"
+                                   VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding ReferenceTrackName}"
+                                   FontFamily="{StaticResource SystemFontFamily}"
+                                   FontSize="11"
+                                   FontWeight="SemiBold"
+                                   Foreground="{StaticResource ForegroundHighlightBrush}"
+                                   VerticalAlignment="Center" />
+                        <TextBlock Text=" | "
+                                   Foreground="{StaticResource BorderBrush}"
+                                   VerticalAlignment="Center"
+                                   Margin="6,0" />
+                        <TextBlock Text="{Binding ReferenceDriverName}"
+                                   FontFamily="{StaticResource SystemFontFamily}"
+                                   FontSize="11"
+                                   FontWeight="SemiBold"
+                                   Foreground="{StaticResource ReferenceTraceBrush}"
+                                   VerticalAlignment="Center" />
+                        <TextBlock Text=" | "
+                                   Foreground="{StaticResource BorderBrush}"
+                                   VerticalAlignment="Center"
+                                   Margin="6,0" />
+                        <TextBlock Text="{Binding ReferenceLapTimeString}"
+                                   FontFamily="{StaticResource TelemetryNumberFontFamily}"
+                                   FontSize="11"
+                                   FontWeight="Bold"
+                                   Foreground="{StaticResource ForegroundHighlightBrush}"
+                                   VerticalAlignment="Center" />
+                    </StackPanel>
+                </Border>
+
+                <!-- Right Action Buttons & Status Badge -->
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                    <!-- Connect Live Button -->
+                    <Button Content="CONNECT ACC"
+                            Style="{StaticResource TracksidePrimaryButton}"
+                            Command="{Binding ConnectLiveCommand}"
+                            Margin="0,0,6,0" />
+
+                    <!-- Disconnect Live Button -->
+                    <Button Content="DISCONNECT"
+                            Style="{StaticResource TracksideButton}"
+                            Command="{Binding DisconnectLiveCommand}"
+                            Margin="0,0,6,0" />
+
+                    <!-- Run Simulation Replay Button (Task 3.3 Dry Run) -->
+                    <Button Content="SIMULATE LAP"
+                            Style="{StaticResource TracksideButton}"
+                            Command="{Binding StartSimulationCommand}"
+                            Margin="0,0,6,0" />
+
+                    <!-- Stop Simulation Replay Button -->
+                    <Button Content="STOP SIM"
+                            Style="{StaticResource TracksideButton}"
+                            Command="{Binding StopSimulationCommand}"
+                            Margin="0,0,6,0" />
+
+                    <!-- Reset Lap Counter Button -->
+                    <Button Content="RESET LAP"
+                            Style="{StaticResource TracksideButton}"
+                            Command="{Binding ResetLapCommand}"
+                            Margin="0,0,12,0" />
+
+                    <!-- Active Mode Badge -->
+                    <Border Background="{StaticResource CanvasBackgroundBrush}"
+                            BorderBrush="{StaticResource BorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="0"
+                            Padding="10,4"
+                            VerticalAlignment="Center">
+                        <TextBlock Text="{Binding ConnectionStatus}"
+                                   FontFamily="{StaticResource TelemetryNumberFontFamily}"
+                                   FontSize="11"
+                                   FontWeight="Bold"
+                                   Foreground="{StaticResource StatusStandbyBrush}" />
+                    </Border>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- ========================================================================= -->
+        <!-- ROW 1: MAIN TRACE WORKSPACE & TELEMETRY SIDEBAR                           -->
+        <!-- ========================================================================= -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <!-- Column 0: 3 Synchronized Plot Trace Panes -->
+                <ColumnDefinition Width="*" />
+                <!-- Column 1: Trackside HUD / Telemetry Channels Sidebar -->
+                <ColumnDefinition Width="310" />
+            </Grid.ColumnDefinitions>
+
+            <!-- ===================================================================== -->
+            <!-- LEFT AREA: THREE SYNCHRONIZED TRACE PANES (Task 4.2 Integration Target) -->
+            <!-- ===================================================================== -->
+            <Grid Grid.Column="0">
+                <Grid.RowDefinitions>
+                    <!-- Pane 1: Speed Trace (km/h) -->
+                    <RowDefinition Height="3*" />
+                    <!-- Pane 2: Pedal Inputs Trace (%) -->
+                    <RowDefinition Height="2*" />
+                    <!-- Pane 3: Delta Time Trace (s) -->
+                    <RowDefinition Height="2*" />
+                </Grid.RowDefinitions>
+
+                <!-- PANE 1: SPEED TRACE CONTAINER -->
+                <Border Grid.Row="0"
+                        Style="{StaticResource TracksidePanelBorder}"
+                        Margin="8,8,4,4">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+
+                        <!-- Pane 1 Header & Legend -->
+                        <Border Grid.Row="0" Style="{StaticResource TracksideHeaderBorder}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock Grid.Column="0"
+                                           Text="SPEED TRACE (km/h vs Distance)"
+                                           Style="{StaticResource TelemetryLabelText}"
+                                           Foreground="{StaticResource ForegroundHighlightBrush}" />
+
+                                <!-- Channel Legends -->
+                                <StackPanel Grid.Column="2" Orientation="Horizontal">
+                                    <!-- Live Trace Legend -->
+                                    <Rectangle Width="10" Height="10" Fill="{StaticResource LiveTraceBrush}" VerticalAlignment="Center" Margin="0,0,4,0" />
+                                    <TextBlock Text="LIVE VEHICLE" Style="{StaticResource TelemetryLabelText}" VerticalAlignment="Center" Margin="0,0,14,0" />
+
+                                    <!-- Reference Trace Legend -->
+                                    <Rectangle Width="10" Height="10" Fill="{StaticResource ReferenceTraceBrush}" VerticalAlignment="Center" Margin="0,0,4,0" />
+                                    <TextBlock Text="HAMILTON 2023 REF" Style="{StaticResource TelemetryLabelText}" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <!-- Pane 1 Plot Container (Placeholder for Task 4.2 ScottPlot WpfPlot) -->
+                        <Border Grid.Row="1"
+                                x:Name="SpeedPlotHost"
+                                Background="{StaticResource CanvasBackgroundBrush}"
+                                SnapsToDevicePixels="True">
+                            <!-- Clean Gridline Overlay Placeholder -->
+                            <Grid>
+                                <TextBlock Text="[ Task 4.2 ScottPlot Speed Trace Canvas: Live Speed (Cyan) vs Hamilton Baseline (Yellow) ]"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"
+                                           FontFamily="{StaticResource TelemetryNumberFontFamily}"
+                                           FontSize="11"
+                                           Foreground="{StaticResource ForegroundMutedBrush}" />
+                            </Grid>
+                        </Border>
+                    </Grid>
+                </Border>
+
+                <!-- PANE 2: PEDAL INPUTS TRACE CONTAINER -->
+                <Border Grid.Row="1"
+                        Style="{StaticResource TracksidePanelBorder}"
+                        Margin="8,4,4,4">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+
+                        <!-- Pane 2 Header & Legend -->
+                        <Border Grid.Row="0" Style="{StaticResource TracksideHeaderBorder}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock Grid.Column="0"
+                                           Text="PEDAL INPUTS (% vs Distance)"
+                                           Style="{StaticResource TelemetryLabelText}"
+                                           Foreground="{StaticResource ForegroundHighlightBrush}" />
+
+                                <!-- Channel Legends -->
+                                <StackPanel Grid.Column="2" Orientation="Horizontal">
+                                    <Rectangle Width="10" Height="10" Fill="{StaticResource ThrottleBrush}" VerticalAlignment="Center" Margin="0,0,4,0" />
+                                    <TextBlock Text="THROTTLE" Style="{StaticResource TelemetryLabelText}" VerticalAlignment="Center" Margin="0,0,14,0" />
+
+                                    <Rectangle Width="10" Height="10" Fill="{StaticResource BrakeBrush}" VerticalAlignment="Center" Margin="0,0,4,0" />
+                                    <TextBlock Text="BRAKE" Style="{StaticResource TelemetryLabelText}" VerticalAlignment="Center" Margin="0,0,14,0" />
+
+                                    <Rectangle Width="10" Height="10" Fill="{StaticResource ReferenceTraceBrush}" VerticalAlignment="Center" Margin="0,0,4,0" />
+                                    <TextBlock Text="REF INPUTS" Style="{StaticResource TelemetryLabelText}" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <!-- Pane 2 Plot Container (Placeholder for Task 4.2 ScottPlot WpfPlot) -->
+                        <Border Grid.Row="1"
+                                x:Name="PedalPlotHost"
+                                Background="{StaticResource CanvasBackgroundBrush}"
+                                SnapsToDevicePixels="True">
+                            <Grid>
+                                <TextBlock Text="[ Task 4.2 ScottPlot Pedal Inputs Canvas: Throttle (Green) vs Brake (Red) ]"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"
+                                           FontFamily="{StaticResource TelemetryNumberFontFamily}"
+                                           FontSize="11"
+                                           Foreground="{StaticResource ForegroundMutedBrush}" />
+                            </Grid>
+                        </Border>
+                    </Grid>
+                </Border>
+
+                <!-- PANE 3: DELTA TIME TRACE CONTAINER -->
+                <Border Grid.Row="2"
+                        Style="{StaticResource TracksidePanelBorder}"
+                        Margin="8,4,4,8">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+
+                        <!-- Pane 3 Header & Legend -->
+                        <Border Grid.Row="0" Style="{StaticResource TracksideHeaderBorder}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock Grid.Column="0"
+                                           Text="DELTA TIME (Seconds vs Distance)"
+                                           Style="{StaticResource TelemetryLabelText}"
+                                           Foreground="{StaticResource ForegroundHighlightBrush}" />
+
+                                <!-- Channel Legends -->
+                                <StackPanel Grid.Column="2" Orientation="Horizontal">
+                                    <Rectangle Width="10" Height="10" Fill="{StaticResource DeltaAheadBrush}" VerticalAlignment="Center" Margin="0,0,4,0" />
+                                    <TextBlock Text="AHEAD (+)" Style="{StaticResource TelemetryLabelText}" VerticalAlignment="Center" Margin="0,0,14,0" />
+
+                                    <Rectangle Width="10" Height="10" Fill="{StaticResource DeltaBehindBrush}" VerticalAlignment="Center" Margin="0,0,4,0" />
+                                    <TextBlock Text="BEHIND (-)" Style="{StaticResource TelemetryLabelText}" VerticalAlignment="Center" Margin="0,0,14,0" />
+
+                                    <Line X1="0" Y1="5" X2="12" Y2="5" Stroke="{StaticResource ForegroundMutedBrush}" StrokeDashArray="2,2" VerticalAlignment="Center" Margin="0,0,4,0" />
+                                    <TextBlock Text="ZERO DELTA" Style="{StaticResource TelemetryLabelText}" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <!-- Pane 3 Plot Container (Placeholder for Task 4.2 ScottPlot WpfPlot) -->
+                        <Border Grid.Row="1"
+                                x:Name="DeltaPlotHost"
+                                Background="{StaticResource CanvasBackgroundBrush}"
+                                SnapsToDevicePixels="True">
+                            <Grid>
+                                <TextBlock Text="[ Task 4.2 ScottPlot Continuous Delta Time Canvas: Δt = t_ref(s) - t_sim(s) ]"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"
+                                           FontFamily="{StaticResource TelemetryNumberFontFamily}"
+                                           FontSize="11"
+                                           Foreground="{StaticResource ForegroundMutedBrush}" />
+                            </Grid>
+                        </Border>
+                    </Grid>
+                </Border>
+            </Grid>
+
+            <!-- ===================================================================== -->
+            <!-- RIGHT AREA: TRACKSIDE HUD & TELEMETRY CHANNELS SIDEBAR                -->
+            <!-- ===================================================================== -->
+            <Border Grid.Column="1"
+                    Style="{StaticResource TracksidePanelBorder}"
+                    Margin="4,8,8,8">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <!-- Section 1: Live Delta Readout -->
+                        <RowDefinition Height="Auto" />
+                        <!-- Section 2: Real-time Channel Numerics -->
+                        <RowDefinition Height="Auto" />
+                        <!-- Section 3: Driver Input Gauges -->
+                        <RowDefinition Height="Auto" />
+                        <!-- Section 4: Sector Timing & Session Metrics -->
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <!-- ============================================================= -->
+                    <!-- SECTION 1: LIVE TIME DELTA READOUT (Head-Up Display)           -->
+                    <!-- ============================================================= -->
+                    <Border Grid.Row="0"
+                            Background="{StaticResource HeaderBackgroundBrush}"
+                            BorderBrush="{StaticResource BorderBrush}"
+                            BorderThickness="0,0,0,1"
+                            Padding="14,12">
+                        <StackPanel HorizontalAlignment="Center">
+                            <TextBlock Text="LIVE TIME DELTA"
+                                       Style="{StaticResource TelemetryLabelText}"
+                                       HorizontalAlignment="Center"
+                                       Margin="0,0,0,4" />
+
+                            <!-- Big Bold Delta Time Readout (e.g. +0.000s or -0.185s) -->
+                            <TextBlock Text="{Binding DeltaDisplayString}"
+                                       Style="{StaticResource DynamicDeltaStyle}"
+                                       Margin="0,2,0,2" />
+
+                            <Border Background="{StaticResource CanvasBackgroundBrush}"
+                                    BorderBrush="{StaticResource BorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="0"
+                                    Padding="10,2"
+                                    HorizontalAlignment="Center"
+                                    Margin="0,4,0,0">
+                                <TextBlock Text="{Binding DeltaStatusString}"
+                                           FontFamily="{StaticResource TelemetryNumberFontFamily}"
+                                           FontSize="11"
+                                           FontWeight="Bold"
+                                           Foreground="{StaticResource ForegroundHighlightBrush}" />
+                            </Border>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- ============================================================= -->
+                    <!-- SECTION 2: TELEMETRY NUMERICAL CHANNELS                       -->
+                    <!-- ============================================================= -->
+                    <Border Grid.Row="1"
+                            BorderBrush="{StaticResource BorderBrush}"
+                            BorderThickness="0,0,0,1"
+                            Padding="12,10">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <!-- Distance -->
+                            <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,4">
+                                <TextBlock Text="DISTANCE" Style="{StaticResource TelemetryLabelText}" />
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="{Binding CurrentDistanceMeters, StringFormat={}{0:F0}}"
+                                               Style="{StaticResource TelemetryValueText}" />
+                                    <TextBlock Text=" m" Style="{StaticResource TelemetryLabelText}" VerticalAlignment="Bottom" Margin="2,0,0,1" />
+                                </StackPanel>
+                            </StackPanel>
+
+                            <!-- Gear & RPM -->
+                            <StackPanel Grid.Row="0" Grid.Column="1" Margin="0,4">
+                                <TextBlock Text="GEAR / RPM" Style="{StaticResource TelemetryLabelText}" />
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="{Binding CurrentGear}"
+                                               Style="{StaticResource TelemetryValueText}" />
+                                    <TextBlock Text=" / " Style="{StaticResource TelemetryLabelText}" VerticalAlignment="Center" />
+                                    <TextBlock Text="{Binding CurrentRpm}"
+                                               Style="{StaticResource TelemetryValueText}" />
+                                </StackPanel>
+                            </StackPanel>
+
+                            <!-- Sim Speed -->
+                            <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,4">
+                                <TextBlock Text="LIVE SPEED" Style="{StaticResource TelemetryLabelText}" Foreground="{StaticResource LiveTraceBrush}" />
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="{Binding CurrentSimSpeedKmh, StringFormat={}{0:F1}}"
+                                               Style="{StaticResource TelemetryValueText}"
+                                               Foreground="{StaticResource LiveTraceBrush}" />
+                                    <TextBlock Text=" km/h" Style="{StaticResource TelemetryLabelText}" VerticalAlignment="Bottom" Margin="2,0,0,1" />
+                                </StackPanel>
+                            </StackPanel>
+
+                            <!-- Ref Speed -->
+                            <StackPanel Grid.Row="1" Grid.Column="1" Margin="0,4">
+                                <TextBlock Text="REF SPEED" Style="{StaticResource TelemetryLabelText}" Foreground="{StaticResource ReferenceTraceBrush}" />
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="{Binding CurrentRefSpeedKmh, StringFormat={}{0:F1}}"
+                                               Style="{StaticResource TelemetryValueText}"
+                                               Foreground="{StaticResource ReferenceTraceBrush}" />
+                                    <TextBlock Text=" km/h" Style="{StaticResource TelemetryLabelText}" VerticalAlignment="Bottom" Margin="2,0,0,1" />
+                                </StackPanel>
+                            </StackPanel>
+
+                            <!-- Speed Delta -->
+                            <StackPanel Grid.Row="2" Grid.Column="0" Margin="0,4">
+                                <TextBlock Text="SPEED DELTA" Style="{StaticResource TelemetryLabelText}" />
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="{Binding SpeedDeltaKmh, StringFormat={}{0:+0.0;-0.0;0.0}}"
+                                               Style="{StaticResource SpeedDeltaStyle}" />
+                                    <TextBlock Text=" km/h" Style="{StaticResource TelemetryLabelText}" VerticalAlignment="Bottom" Margin="2,0,0,1" />
+                                </StackPanel>
+                            </StackPanel>
+
+                            <!-- Lap Length Progress -->
+                            <StackPanel Grid.Row="2" Grid.Column="1" Margin="0,4">
+                                <TextBlock Text="LAP LENGTH" Style="{StaticResource TelemetryLabelText}" />
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="{Binding ReferenceTrackLengthMeters}"
+                                               Style="{StaticResource TelemetryValueText}" />
+                                    <TextBlock Text=" m" Style="{StaticResource TelemetryLabelText}" VerticalAlignment="Bottom" Margin="2,0,0,1" />
+                                </StackPanel>
+                            </StackPanel>
+
+                            <!-- Sim Elapsed Lap Time -->
+                            <StackPanel Grid.Row="3" Grid.Column="0" Margin="0,4">
+                                <TextBlock Text="SIM TIME" Style="{StaticResource TelemetryLabelText}" />
+                                <TextBlock Text="{Binding CurrentSimTimeSeconds, StringFormat={}{0:F3}s}"
+                                           Style="{StaticResource TelemetryValueText}" />
+                            </StackPanel>
+
+                            <!-- Ref Elapsed Lap Time -->
+                            <StackPanel Grid.Row="3" Grid.Column="1" Margin="0,4">
+                                <TextBlock Text="REF TIME" Style="{StaticResource TelemetryLabelText}" />
+                                <TextBlock Text="{Binding CurrentRefTimeSeconds, StringFormat={}{0:F3}s}"
+                                           Style="{StaticResource TelemetryValueText}" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <!-- ============================================================= -->
+                    <!-- SECTION 3: DRIVER INPUT GAUGES (Throttle & Brake)             -->
+                    <!-- ============================================================= -->
+                    <Border Grid.Row="2"
+                            BorderBrush="{StaticResource BorderBrush}"
+                            BorderThickness="0,0,0,1"
+                            Padding="12,10">
+                        <StackPanel>
+                            <TextBlock Text="PEDAL INPUTS" Style="{StaticResource TelemetryLabelText}" Margin="0,0,0,8" />
+
+                            <!-- Throttle Bar -->
+                            <Grid Margin="0,0,0,8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="60" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="42" />
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock Grid.Column="0"
+                                           Text="THROTTLE"
+                                           Style="{StaticResource TelemetryLabelText}"
+                                           VerticalAlignment="Center" />
+
+                                <ProgressBar Grid.Column="1"
+                                             Height="12"
+                                             Minimum="0" Maximum="100"
+                                             Value="{Binding CurrentSimThrottlePercent, Mode=OneWay}"
+                                             Background="{StaticResource GaugeTrackBrush}"
+                                             Foreground="{StaticResource ThrottleBrush}"
+                                             BorderBrush="{StaticResource BorderBrush}"
+                                             BorderThickness="1" />
+
+                                <TextBlock Grid.Column="2"
+                                           Text="{Binding CurrentSimThrottlePercent, StringFormat={}{0:F0}%}"
+                                           Style="{StaticResource TelemetryValueText}"
+                                           FontSize="11"
+                                           HorizontalAlignment="Right"
+                                           VerticalAlignment="Center" />
+                            </Grid>
+
+                            <!-- Brake Bar -->
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="60" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="42" />
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock Grid.Column="0"
+                                           Text="BRAKE"
+                                           Style="{StaticResource TelemetryLabelText}"
+                                           VerticalAlignment="Center" />
+
+                                <ProgressBar Grid.Column="1"
+                                             Height="12"
+                                             Minimum="0" Maximum="100"
+                                             Value="{Binding CurrentSimBrakePercent, Mode=OneWay}"
+                                             Background="{StaticResource GaugeTrackBrush}"
+                                             Foreground="{StaticResource BrakeBrush}"
+                                             BorderBrush="{StaticResource BorderBrush}"
+                                             BorderThickness="1" />
+
+                                <TextBlock Grid.Column="2"
+                                           Text="{Binding CurrentSimBrakePercent, StringFormat={}{0:F0}%}"
+                                           Style="{StaticResource TelemetryValueText}"
+                                           FontSize="11"
+                                           HorizontalAlignment="Right"
+                                           VerticalAlignment="Center" />
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- ============================================================= -->
+                    <!-- SECTION 4: SECTOR ANALYSIS BREAKDOWN                          -->
+                    <!-- ============================================================= -->
+                    <Border Grid.Row="3" Padding="12,10">
+                        <StackPanel>
+                            <TextBlock Text="TRACK SECTOR ANALYSIS" Style="{StaticResource TelemetryLabelText}" Margin="0,0,0,8" />
+
+                            <!-- Sector 1 -->
+                            <Border Background="{StaticResource CanvasBackgroundBrush}"
+                                    BorderBrush="{StaticResource BorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="0"
+                                    Padding="8,6"
+                                    Margin="0,0,0,6">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="SECTOR 1: PRIMA VARIANTE" Style="{StaticResource TelemetryLabelText}" />
+                                        <TextBlock Text="Turn 1 &amp; 2 Chicane (0m - 1650m)" FontSize="10" Foreground="{StaticResource ForegroundMutedBrush}" />
+                                    </StackPanel>
+                                    <TextBlock Grid.Column="1" Text="DELTA: ±0.00s" Style="{StaticResource TelemetryValueText}" FontSize="11" VerticalAlignment="Center" />
+                                </Grid>
+                            </Border>
+
+                            <!-- Sector 2 -->
+                            <Border Background="{StaticResource CanvasBackgroundBrush}"
+                                    BorderBrush="{StaticResource BorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="0"
+                                    Padding="8,6"
+                                    Margin="0,0,0,6">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="SECTOR 2: LESMO &amp; SERRAGLIO" Style="{StaticResource TelemetryLabelText}" />
+                                        <TextBlock Text="Turn 4 to Turn 7 (1650m - 3450m)" FontSize="10" Foreground="{StaticResource ForegroundMutedBrush}" />
+                                    </StackPanel>
+                                    <TextBlock Grid.Column="1" Text="DELTA: ±0.00s" Style="{StaticResource TelemetryValueText}" FontSize="11" VerticalAlignment="Center" />
+                                </Grid>
+                            </Border>
+
+                            <!-- Sector 3 -->
+                            <Border Background="{StaticResource CanvasBackgroundBrush}"
+                                    BorderBrush="{StaticResource BorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="0"
+                                    Padding="8,6">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="SECTOR 3: ASCARI &amp; PARABOLICA" Style="{StaticResource TelemetryLabelText}" />
+                                        <TextBlock Text="Turn 8 to Turn 11 (3450m - 5793m)" FontSize="10" Foreground="{StaticResource ForegroundMutedBrush}" />
+                                    </StackPanel>
+                                    <TextBlock Grid.Column="1" Text="DELTA: ±0.00s" Style="{StaticResource TelemetryValueText}" FontSize="11" VerticalAlignment="Center" />
+                                </Grid>
+                            </Border>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- ========================================================================= -->
+        <!-- ROW 2: BOTTOM ENGINEERING STATUS BAR                                      -->
+        <!-- ========================================================================= -->
+        <Border Grid.Row="2"
+                Background="{StaticResource HeaderBackgroundBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,1,0,0"
+                Padding="12,0">
+            <Grid VerticalAlignment="Center">
+                <Grid.ColumnDefinitions>
+                    <!-- Ingestion Status Message -->
+                    <ColumnDefinition Width="*" />
+                    <!-- Diagnostic Ring Buffer Metrics -->
+                    <ColumnDefinition Width="Auto" />
+                    <!-- Ingestion Engine / Clock Spec -->
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <!-- Status Message -->
+                <TextBlock Grid.Column="0"
+                           Text="{Binding StatusMessage}"
+                           Style="{StaticResource TelemetryLabelText}"
+                           Foreground="{StaticResource ForegroundPrimaryBrush}"
+                           VerticalAlignment="Center" />
+
+                <!-- Buffer Count -->
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,16,0">
+                    <TextBlock Text="RING BUFFER: " Style="{StaticResource TelemetryLabelText}" />
+                    <TextBlock Text="{Binding BufferCount}" Style="{StaticResource TelemetryValueText}" FontSize="11" />
+                    <TextBlock Text="/" Style="{StaticResource TelemetryLabelText}" />
+                    <TextBlock Text="{Binding BufferCapacity}" Style="{StaticResource TelemetryValueText}" FontSize="11" />
+                    <TextBlock Text=" (0 GC Allocations)" Style="{StaticResource TelemetryLabelText}" Margin="4,0,0,0" />
+                </StackPanel>
+
+                <!-- Ingestion Specification -->
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="SOURCE: " Style="{StaticResource TelemetryLabelText}" />
+                    <TextBlock Text="ACC SHARED MEMORY (Local\acpmf_physics) | CLOCK: 60Hz"
+                               FontFamily="{StaticResource TelemetryNumberFontFamily}"
+                               FontSize="11"
+                               FontWeight="SemiBold"
+                               Foreground="{StaticResource ForegroundMutedBrush}" />
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("OpenATLAS.ConsoleApp")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+95a68a4c59afc12f3419a3f1617c1d73865adba7")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+ca03ad9de8f030e9329c5ca37e0e37a94e4a310a")]
 [assembly: System.Reflection.AssemblyProductAttribute("OpenATLAS.ConsoleApp")]
 [assembly: System.Reflection.AssemblyTitleAttribute("OpenATLAS.ConsoleApp")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

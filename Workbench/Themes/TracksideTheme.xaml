@@ -1,0 +1,168 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!--
+        OpenATLAS Phase 4 - Task 4.1: UI Shell Setup
+        Trackside Telemetry & Delta Workbench Aesthetic Theme
+        
+        Design Specifications & Constraints (UI_guidelines.txt & openatlas_idea.md):
+        1. Dark gray / matte black background: #1E1E1E
+        2. High-contrast trace colors: Cyan (#00E5FF) for live, Yellow (#FFE600) for reference
+        3. Strict 0 corner radius (CornerRadius="0") for sharp motorsport instrumentation
+        4. Standard system typography (Segoe UI for interface, Consolas for telemetry numbers)
+        5. Zero gradients, zero drop shadows, zero emojis, zero hover animations
+    -->
+
+    <!-- ========================================================================= -->
+    <!-- COLOR PALETTE BRUSHES                                                     -->
+    <!-- ========================================================================= -->
+
+    <!-- Core Canvas & Panel Backgrounds -->
+    <SolidColorBrush x:Key="CanvasBackgroundBrush" Color="#1E1E1E" />
+    <SolidColorBrush x:Key="PanelBackgroundBrush" Color="#252526" />
+    <SolidColorBrush x:Key="HeaderBackgroundBrush" Color="#2D2D30" />
+    <SolidColorBrush x:Key="ControlBackgroundBrush" Color="#2A2A2D" />
+    <SolidColorBrush x:Key="ControlHoverBrush" Color="#3E3E42" />
+    <SolidColorBrush x:Key="ControlPressedBrush" Color="#1E1E1E" />
+
+    <!-- Borders & Dividers -->
+    <SolidColorBrush x:Key="BorderBrush" Color="#3E3E42" />
+    <SolidColorBrush x:Key="SubtleBorderBrush" Color="#333337" />
+    <SolidColorBrush x:Key="GridLineBrush" Color="#2D2D30" />
+
+    <!-- Typography Brushes -->
+    <SolidColorBrush x:Key="ForegroundPrimaryBrush" Color="#D4D4D4" />
+    <SolidColorBrush x:Key="ForegroundMutedBrush" Color="#858585" />
+    <SolidColorBrush x:Key="ForegroundHighlightBrush" Color="#FFFFFF" />
+
+    <!-- Telemetry Trace Brushes (Task 4.1 Spec) -->
+    <SolidColorBrush x:Key="LiveTraceBrush" Color="#00E5FF" />
+    <SolidColorBrush x:Key="ReferenceTraceBrush" Color="#FFE600" />
+    <SolidColorBrush x:Key="ThrottleBrush" Color="#00E676" />
+    <SolidColorBrush x:Key="BrakeBrush" Color="#FF5252" />
+
+    <!-- Delta State Brushes (Positive = Ahead/Green, Negative = Behind/Red) -->
+    <SolidColorBrush x:Key="DeltaAheadBrush" Color="#00E676" />
+    <SolidColorBrush x:Key="DeltaBehindBrush" Color="#FF5252" />
+    <SolidColorBrush x:Key="DeltaNeutralBrush" Color="#858585" />
+
+    <!-- Status & Badge Brushes -->
+    <SolidColorBrush x:Key="StatusActiveBrush" Color="#00E676" />
+    <SolidColorBrush x:Key="StatusStandbyBrush" Color="#FFE600" />
+    <SolidColorBrush x:Key="StatusInactiveBrush" Color="#858585" />
+    <SolidColorBrush x:Key="AccentBlueBrush" Color="#0E639C" />
+
+    <!-- Gauge Backgrounds -->
+    <SolidColorBrush x:Key="GaugeTrackBrush" Color="#1A1A1A" />
+
+    <!-- ========================================================================= -->
+    <!-- FONT FAMILIES                                                             -->
+    <!-- ========================================================================= -->
+    <FontFamily x:Key="SystemFontFamily">Segoe UI</FontFamily>
+    <FontFamily x:Key="TelemetryNumberFontFamily">Consolas</FontFamily>
+
+    <!-- ========================================================================= -->
+    <!-- BASE CONTROL STYLES                                                       -->
+    <!-- ========================================================================= -->
+
+    <!-- Base Window Style -->
+    <Style TargetType="Window">
+        <Setter Property="Background" Value="{StaticResource CanvasBackgroundBrush}" />
+        <Setter Property="Foreground" Value="{StaticResource ForegroundPrimaryBrush}" />
+        <Setter Property="FontFamily" Value="{StaticResource SystemFontFamily}" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="TextOptions.TextFormattingMode" Value="Display" />
+        <Setter Property="RenderOptions.ClearTypeHint" Value="Enabled" />
+    </Style>
+
+    <!-- Trackside Engineering Button (Square, Solid Matte, Zero Corner Radius) -->
+    <Style x:Key="TracksideButton" TargetType="Button">
+        <Setter Property="Background" Value="{StaticResource ControlBackgroundBrush}" />
+        <Setter Property="Foreground" Value="{StaticResource ForegroundPrimaryBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="FontFamily" Value="{StaticResource SystemFontFamily}" />
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Padding" Value="12,6" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="0"
+                            SnapsToDevicePixels="True">
+                        <ContentPresenter HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"
+                                          Margin="{TemplateBinding Padding}" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter Property="Background" Value="{StaticResource ControlHoverBrush}" />
+                            <Setter Property="Foreground" Value="{StaticResource ForegroundHighlightBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter Property="Background" Value="{StaticResource ControlPressedBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.4" />
+                            <Setter Property="Cursor" Value="Arrow" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Primary Accent Button -->
+    <Style x:Key="TracksidePrimaryButton" TargetType="Button" BasedOn="{StaticResource TracksideButton}">
+        <Setter Property="Background" Value="{StaticResource AccentBlueBrush}" />
+        <Setter Property="Foreground" Value="{StaticResource ForegroundHighlightBrush}" />
+        <Setter Property="BorderBrush" Value="#1177BB" />
+    </Style>
+
+    <!-- Trackside Panel Border Style (Square, Dark Slate Surface, 1px Border) -->
+    <Style x:Key="TracksidePanelBorder" TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource PanelBackgroundBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="0" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+    </Style>
+
+    <!-- Panel Header Border Style -->
+    <Style x:Key="TracksideHeaderBorder" TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource HeaderBackgroundBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+        <Setter Property="BorderThickness" Value="0,0,0,1" />
+        <Setter Property="Padding" Value="10,6" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+    </Style>
+
+    <!-- Telemetry Label Text (Muted, Small, Uppercase) -->
+    <Style x:Key="TelemetryLabelText" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{StaticResource ForegroundMutedBrush}" />
+        <Setter Property="FontFamily" Value="{StaticResource SystemFontFamily}" />
+        <Setter Property="FontSize" Value="10" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+
+    <!-- Telemetry Numeric Value Text (Fixed-Width Consolas, Bright) -->
+    <Style x:Key="TelemetryValueText" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{StaticResource ForegroundHighlightBrush}" />
+        <Setter Property="FontFamily" Value="{StaticResource TelemetryNumberFontFamily}" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="FontWeight" Value="Bold" />
+    </Style>
+
+    <!-- Large Telemetry Delta Readout Text -->
+    <Style x:Key="DeltaReadoutText" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource TelemetryNumberFontFamily}" />
+        <Setter Property="FontSize" Value="28" />
+        <Setter Property="FontWeight" Value="Bold" />
+        <Setter Property="TextAlignment" Value="Center" />
+    </Style>
+
+</ResourceDictionary>
