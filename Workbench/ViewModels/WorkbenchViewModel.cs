@@ -25,7 +25,9 @@ namespace OpenATLAS.Workbench.ViewModels
         public const int DefaultBufferCapacity = 1000;
 
         private readonly CircularBuffer<LiveDeltaSnapshot> _circularBuffer;
+        private readonly ReferenceLibrary? _library;
         private ReferenceLapIndex? _referenceLap;
+        private string? _loadedLapPath;
         private LiveDeltaEngine? _deltaEngine;
         private SharedMemoryListener? _sharedMemoryListener;
 
@@ -34,15 +36,23 @@ namespace OpenATLAS.Workbench.ViewModels
 
         // Observable State Backing Fields
         private string _connectionStatus = "STANDBY";
-        private string _statusMessage = "Ready. Load baseline or start live ingestion.";
+        private string _statusMessage = "Ready. Select a reference lap or start live ingestion.";
         private bool _isLiveConnected;
         private bool _isSimulating;
 
-        private string _referenceTrackName = "Monza (Autodromo Nazionale Monza)";
-        private string _referenceDriverName = "Lewis Hamilton";
-        private string _referenceSession = "2023 Italian Grand Prix - Qualifying (Q)";
-        private string _referenceLapTimeString = "01:20.294";
-        private int _referenceTrackLengthMeters = 5793;
+        private string _referenceTrackName = "-";
+        private string _referenceDriverName = "-";
+        private string _referenceSession = "-";
+        private string _referenceLapTimeString = "--:--.---";
+        private int _referenceTrackLengthMeters;
+
+        // Reference Library Selection (Year -> Track -> Driver)
+        private IReadOnlyList<string> _availableYears = [];
+        private IReadOnlyList<string> _availableTracks = [];
+        private IReadOnlyList<string> _availableDrivers = [];
+        private string? _selectedYear;
+        private string? _selectedTrack;
+        private string? _selectedDriver;
 
         private float _currentDistanceMeters;
         private float _currentSimSpeedKmh;
@@ -101,10 +111,19 @@ namespace OpenATLAS.Workbench.ViewModels
         public CircularBuffer<LiveDeltaSnapshot> CircularBuffer => _circularBuffer;
         public ReferenceLapIndex? ReferenceLap => _referenceLap;
         public LiveDeltaEngine? DeltaEngine => _deltaEngine;
+        public ReferenceLibrary? Library => _library;
 
-        public WorkbenchViewModel(ReferenceLapIndex? referenceLap = null)
+        /// <summary>
+        /// Raised on the UI thread whenever a new reference lap has been loaded, so the trace panes can redraw.
+        /// </summary>
+        public event Action? ReferenceLapChanged;
+
+        /// <param name="referenceLap">Optional pre-loaded lap (skips auto-selecting from the library).</param>
+        /// <param name="library">Reference library; when null the 'references' folder is searched for.</param>
+        public WorkbenchViewModel(ReferenceLapIndex? referenceLap = null, ReferenceLibrary? library = null)
         {
             _circularBuffer = new CircularBuffer<LiveDeltaSnapshot>(_bufferCapacity);
+            _library = library ?? ReferenceLibrary.Find(AppContext.BaseDirectory, Directory.GetCurrentDirectory());
 
             ConnectLiveCommand = new RelayCommand(StartLiveIngestion, () => !IsLiveConnected && !IsSimulating);
             DisconnectLiveCommand = new RelayCommand(StopLiveIngestion, () => IsLiveConnected);
@@ -112,13 +131,20 @@ namespace OpenATLAS.Workbench.ViewModels
             StopSimulationCommand = new RelayCommand(StopSimulationReplay, () => IsSimulating);
             ResetLapCommand = new RelayCommand(ResetLap);
 
+            AvailableYears = _library?.GetYears() ?? [];
+
             if (referenceLap != null)
             {
                 InitializeReference(referenceLap);
             }
+            else if (AvailableYears.Count > 0)
+            {
+                // Cascades into track, driver and finally loads the lap
+                SelectedYear = AvailableYears[0];
+            }
             else
             {
-                TryLoadDefaultReferenceLap();
+                StatusMessage = "No reference laps found. Run extract_reference.py to populate the 'references' folder.";
             }
         }
 
@@ -144,6 +170,7 @@ namespace OpenATLAS.Workbench.ViewModels
                 if (SetProperty(ref _isLiveConnected, value))
                 {
                     OnPropertyChanged(nameof(CanToggleLive));
+                    OnPropertyChanged(nameof(CanChangeReference));
                 }
             }
         }
@@ -156,11 +183,75 @@ namespace OpenATLAS.Workbench.ViewModels
                 if (SetProperty(ref _isSimulating, value))
                 {
                     OnPropertyChanged(nameof(CanToggleLive));
+                    OnPropertyChanged(nameof(CanChangeReference));
                 }
             }
         }
 
         public bool CanToggleLive => !IsSimulating;
+
+        // The reference is locked while a stream is running so the delta engine is never swapped mid-lap
+        public bool CanChangeReference => !IsLiveConnected && !IsSimulating;
+
+        public IReadOnlyList<string> AvailableYears
+        {
+            get => _availableYears;
+            private set => SetProperty(ref _availableYears, value);
+        }
+
+        public IReadOnlyList<string> AvailableTracks
+        {
+            get => _availableTracks;
+            private set => SetProperty(ref _availableTracks, value);
+        }
+
+        public IReadOnlyList<string> AvailableDrivers
+        {
+            get => _availableDrivers;
+            private set => SetProperty(ref _availableDrivers, value);
+        }
+
+        /// <summary>
+        /// Selecting a year refreshes the track list, keeping the current track when that year has it.
+        /// </summary>
+        public string? SelectedYear
+        {
+            get => _selectedYear;
+            set
+            {
+                if (!SetProperty(ref _selectedYear, value)) return;
+
+                string? previousTrack = _selectedTrack;
+                AvailableTracks = value != null && _library != null ? _library.GetTracks(value) : [];
+                SetSelectedTrack(PickOrFirst(AvailableTracks, previousTrack), force: true);
+            }
+        }
+
+        /// <summary>
+        /// Selecting a track refreshes the driver list, keeping the current driver when they have a lap there.
+        /// </summary>
+        public string? SelectedTrack
+        {
+            get => _selectedTrack;
+            set => SetSelectedTrack(value, force: false);
+        }
+
+        /// <summary>
+        /// Selecting a driver loads their reference lap.
+        /// </summary>
+        public string? SelectedDriver
+        {
+            get => _selectedDriver;
+            set
+            {
+                if (SetProperty(ref _selectedDriver, value))
+                {
+                    LoadSelectedReference();
+                }
+            }
+        }
+
+        public string ReferenceLabel => $"{ReferenceDriverName} {SelectedYear} REF";
 
         public string ReferenceTrackName
         {
@@ -171,7 +262,13 @@ namespace OpenATLAS.Workbench.ViewModels
         public string ReferenceDriverName
         {
             get => _referenceDriverName;
-            set => SetProperty(ref _referenceDriverName, value);
+            set
+            {
+                if (SetProperty(ref _referenceDriverName, value))
+                {
+                    OnPropertyChanged(nameof(ReferenceLabel));
+                }
+            }
         }
 
         public string ReferenceSession
@@ -321,54 +418,62 @@ namespace OpenATLAS.Workbench.ViewModels
             _deltaEngine.OnLapCompleted += HandleLapCompleted;
 
             StatusMessage = $"Baseline loaded: {referenceLap.SampleCount} samples over {referenceLap.TrackLengthMeters}m ({_referenceLapTimeString}).";
+            ReferenceLapChanged?.Invoke();
+        }
+
+        private void SetSelectedTrack(string? value, bool force)
+        {
+            if (!SetProperty(ref _selectedTrack, value, nameof(SelectedTrack)) && !force) return;
+
+            string? previousDriver = _selectedDriver;
+            AvailableDrivers = value != null && _selectedYear != null && _library != null
+                ? _library.GetDrivers(_selectedYear, value)
+                : [];
+
+            string? driver = PickOrFirst(AvailableDrivers, previousDriver);
+            if (driver == _selectedDriver)
+            {
+                // Same driver code but a different year/track: still a different lap file
+                LoadSelectedReference();
+            }
+            else
+            {
+                SelectedDriver = driver;
+            }
+        }
+
+        private static string? PickOrFirst(IReadOnlyList<string> options, string? preferred)
+        {
+            if (preferred != null && options.Contains(preferred)) return preferred;
+            return options.Count > 0 ? options[0] : null;
         }
 
         /// <summary>
-        /// Attempts to locate and load the default monza_reference_lap.parquet from disk.
+        /// Loads the lap for the current Year/Track/Driver selection and resets the live session against it.
         /// </summary>
-        public bool TryLoadDefaultReferenceLap()
+        private void LoadSelectedReference()
         {
-            string? filePath = FindReferenceParquetPath();
-            if (filePath != null && File.Exists(filePath))
+            if (_library == null || _selectedYear == null || _selectedTrack == null || _selectedDriver == null) return;
+
+            string path = _library.GetLapPath(_selectedYear, _selectedTrack, _selectedDriver);
+            if (path == _loadedLapPath) return;
+
+            try
             {
-                try
-                {
-                    var lap = ReferenceLapIndex.FromParquetFile(filePath);
-                    InitializeReference(lap);
-                    return true;
-                }
-                catch (Exception ex)
-                {
-                    StatusMessage = $"Failed to parse default Parquet baseline: {ex.Message}";
-                    return false;
-                }
+                var lap = ReferenceLapIndex.FromParquetFile(path);
+                _loadedLapPath = path;
+
+                ResetLap();
+                ReferenceTrackName = _selectedTrack;
+                ReferenceDriverName = _selectedDriver;
+                ReferenceSession = $"{_selectedYear} {_selectedTrack}";
+                OnPropertyChanged(nameof(ReferenceLabel));
+                InitializeReference(lap);
             }
-
-            StatusMessage = "Reference lap file not found. Place 'monza_reference_lap.parquet' in the root.";
-            return false;
-        }
-
-        private static string? FindReferenceParquetPath()
-        {
-            string[] searchPaths = [
-                "monza_reference_lap.parquet",
-                "../monza_reference_lap.parquet",
-                "../../monza_reference_lap.parquet",
-                "../../../monza_reference_lap.parquet",
-                Path.Combine(AppContext.BaseDirectory, "monza_reference_lap.parquet"),
-                Path.Combine(AppContext.BaseDirectory, "../../../../monza_reference_lap.parquet")
-            ];
-
-            foreach (var path in searchPaths)
+            catch (Exception ex)
             {
-                string fullPath = Path.GetFullPath(path);
-                if (File.Exists(fullPath))
-                {
-                    return fullPath;
-                }
+                StatusMessage = $"Failed to load reference lap '{path}': {ex.Message}";
             }
-
-            return null;
         }
 
         #endregion
@@ -424,9 +529,9 @@ namespace OpenATLAS.Workbench.ViewModels
         {
             if (IsLiveConnected || IsSimulating) return;
 
-            if (_referenceLap == null && !TryLoadDefaultReferenceLap())
+            if (_referenceLap == null)
             {
-                StatusMessage = "Cannot start live ingestion without a valid reference lap loaded.";
+                StatusMessage = "Cannot start live ingestion without a reference lap. Select one first.";
                 return;
             }
 
@@ -511,9 +616,9 @@ namespace OpenATLAS.Workbench.ViewModels
         {
             if (IsLiveConnected || IsSimulating) return;
 
-            if (_referenceLap == null && !TryLoadDefaultReferenceLap())
+            if (_referenceLap == null)
             {
-                StatusMessage = "Cannot run simulation without a valid reference lap baseline.";
+                StatusMessage = "Cannot run simulation without a reference lap. Select one first.";
                 return;
             }
 
@@ -522,7 +627,7 @@ namespace OpenATLAS.Workbench.ViewModels
 
             IsSimulating = true;
             ConnectionStatus = "SIMULATION REPLAY";
-            StatusMessage = "Running 60Hz simulated Monza replay vs Lewis Hamilton baseline...";
+            StatusMessage = $"Running 60Hz simulated replay vs {ReferenceDriverName} ({ReferenceSession}) baseline...";
 
             _simulationTask = Task.Run(async () =>
             {

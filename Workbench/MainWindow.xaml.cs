@@ -1,6 +1,7 @@
 using System;
 using System.ComponentModel;
 using System.Windows;
+using OpenATLAS.Workbench.Plotting;
 using OpenATLAS.Workbench.ViewModels;
 
 namespace OpenATLAS.Workbench
@@ -13,6 +14,7 @@ namespace OpenATLAS.Workbench
     public partial class MainWindow : Window
     {
         private readonly WorkbenchViewModel _viewModel;
+        private TracePanes _tracePanes = null!;
 
         public MainWindow()
         {
@@ -21,6 +23,7 @@ namespace OpenATLAS.Workbench
             // Instantiate ViewModel and assign as the primary DataContext
             _viewModel = new WorkbenchViewModel();
             DataContext = _viewModel;
+            InitializeTracePanes();
         }
 
         /// <summary>
@@ -32,6 +35,51 @@ namespace OpenATLAS.Workbench
             InitializeComponent();
             _viewModel = viewModel ?? throw new ArgumentNullException(nameof(viewModel));
             DataContext = _viewModel;
+            InitializeTracePanes();
+        }
+
+        /// <summary>
+        /// Task 4.2: Builds the three ScottPlot trace panes, draws the reference lap,
+        /// and links their distance (X) axes so pan/zoom stays synchronized.
+        /// </summary>
+        private void InitializeTracePanes()
+        {
+            _tracePanes = new TracePanes(SpeedPlot.Plot, PedalPlot.Plot, DeltaPlot.Plot, _viewModel.BufferCapacity);
+
+            if (_viewModel.ReferenceLap != null)
+            {
+                _tracePanes.LoadReference(_viewModel.ReferenceLap);
+            }
+
+            _viewModel.ReferenceLapChanged += OnReferenceLapChanged;
+
+            SpeedPlot.Plot.Axes.Link(PedalPlot, x: true, y: false);
+            SpeedPlot.Plot.Axes.Link(DeltaPlot, x: true, y: false);
+            PedalPlot.Plot.Axes.Link(SpeedPlot, x: true, y: false);
+            PedalPlot.Plot.Axes.Link(DeltaPlot, x: true, y: false);
+            DeltaPlot.Plot.Axes.Link(SpeedPlot, x: true, y: false);
+            DeltaPlot.Plot.Axes.Link(PedalPlot, x: true, y: false);
+
+            RefreshPlots();
+        }
+
+        /// <summary>
+        /// Redraws the reference traces when the user picks a different Year/Track/Driver.
+        /// </summary>
+        private void OnReferenceLapChanged()
+        {
+            if (_viewModel.ReferenceLap == null) return;
+
+            _tracePanes.ClearLive();
+            _tracePanes.LoadReference(_viewModel.ReferenceLap);
+            RefreshPlots();
+        }
+
+        private void RefreshPlots()
+        {
+            SpeedPlot.Refresh();
+            PedalPlot.Refresh();
+            DeltaPlot.Refresh();
         }
 
         /// <summary>
@@ -42,6 +90,7 @@ namespace OpenATLAS.Workbench
         protected override void OnClosing(CancelEventArgs e)
         {
             base.OnClosing(e);
+            _viewModel.ReferenceLapChanged -= OnReferenceLapChanged;
             _viewModel.Dispose();
         }
     }

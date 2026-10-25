@@ -221,12 +221,13 @@ namespace OpenATLAS.ConsoleApp
 
         private static string FindReferenceParquetFile()
         {
+            const string defaultLap = "references/2023/Monza/HAM.parquet";
             string[] candidatePaths = [
-                "monza_reference_lap.parquet",
-                "../monza_reference_lap.parquet",
-                "../../monza_reference_lap.parquet",
-                Path.Combine(AppContext.BaseDirectory, "monza_reference_lap.parquet"),
-                Path.Combine(AppContext.BaseDirectory, "../../../../monza_reference_lap.parquet")
+                defaultLap,
+                "../" + defaultLap,
+                "../../" + defaultLap,
+                Path.Combine(AppContext.BaseDirectory, defaultLap),
+                Path.Combine(AppContext.BaseDirectory, "../../../../" + defaultLap)
             ];
 
             foreach (var path in candidatePaths)
@@ -235,7 +236,7 @@ namespace OpenATLAS.ConsoleApp
                 if (File.Exists(fullPath)) return fullPath;
             }
 
-            return "monza_reference_lap.parquet";
+            return defaultLap;
         }
     }
 }

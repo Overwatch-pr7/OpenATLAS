@@ -4,6 +4,7 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:vm="clr-namespace:OpenATLAS.Workbench.ViewModels"
+        xmlns:sp="clr-namespace:ScottPlot.WPF;assembly=ScottPlot.WPF"
         mc:Ignorable="d"
         Title="OpenATLAS - Trackside Telemetry &amp; Delta Analysis Workbench"
         Width="1366" Height="860"
@@ -42,9 +43,11 @@
         <Grid.RowDefinitions>
             <!-- Row 0: Top Command & Session Bar -->
             <RowDefinition Height="46" />
-            <!-- Row 1: Main Work Area (Trace Panes + Telemetry Sidebar) -->
+            <!-- Row 1: Reference Lap Selector Bar -->
+            <RowDefinition Height="36" />
+            <!-- Row 2: Main Work Area (Trace Panes + Telemetry Sidebar) -->
             <RowDefinition Height="*" />
-            <!-- Row 2: Bottom Engineering Status Bar -->
+            <!-- Row 3: Bottom Engineering Status Bar -->
             <RowDefinition Height="28" />
         </Grid.RowDefinitions>
 
@@ -60,7 +63,7 @@
                 <Grid.ColumnDefinitions>
                     <!-- Brand & Workbench Name -->
                     <ColumnDefinition Width="Auto" />
-                    <!-- Reference Baseline Session Info -->
+                    <!-- Spacer -->
                     <ColumnDefinition Width="*" />
                     <!-- Telemetry Controls & Status Badge -->
                     <ColumnDefinition Width="Auto" />
@@ -82,47 +85,6 @@
                                VerticalAlignment="Center"
                                Margin="6,0,0,0" />
                 </StackPanel>
-
-                <!-- Center Session Info Banner -->
-                <Border Grid.Column="1"
-                        Background="{StaticResource CanvasBackgroundBrush}"
-                        BorderBrush="{StaticResource BorderBrush}"
-                        BorderThickness="1"
-                        CornerRadius="0"
-                        HorizontalAlignment="Center"
-                        Padding="14,4">
-                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                        <TextBlock Text="BASELINE: "
-                                   Style="{StaticResource TelemetryLabelText}"
-                                   VerticalAlignment="Center" />
-                        <TextBlock Text="{Binding ReferenceTrackName}"
-                                   FontFamily="{StaticResource SystemFontFamily}"
-                                   FontSize="11"
-                                   FontWeight="SemiBold"
-                                   Foreground="{StaticResource ForegroundHighlightBrush}"
-                                   VerticalAlignment="Center" />
-                        <TextBlock Text=" | "
-                                   Foreground="{StaticResource BorderBrush}"
-                                   VerticalAlignment="Center"
-                                   Margin="6,0" />
-                        <TextBlock Text="{Binding ReferenceDriverName}"
-                                   FontFamily="{StaticResource SystemFontFamily}"
-                                   FontSize="11"
-                                   FontWeight="SemiBold"
-                                   Foreground="{StaticResource ReferenceTraceBrush}"
-                                   VerticalAlignment="Center" />
-                        <TextBlock Text=" | "
-                                   Foreground="{StaticResource BorderBrush}"
-                                   VerticalAlignment="Center"
-                                   Margin="6,0" />
-                        <TextBlock Text="{Binding ReferenceLapTimeString}"
-                                   FontFamily="{StaticResource TelemetryNumberFontFamily}"
-                                   FontSize="11"
-                                   FontWeight="Bold"
-                                   Foreground="{StaticResource ForegroundHighlightBrush}"
-                                   VerticalAlignment="Center" />
-                    </StackPanel>
-                </Border>
 
                 <!-- Right Action Buttons & Status Badge -->
                 <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
@@ -174,9 +136,72 @@
         </Border>
 
         <!-- ========================================================================= -->
-        <!-- ROW 1: MAIN TRACE WORKSPACE & TELEMETRY SIDEBAR                           -->
+        <!-- ROW 1: REFERENCE LAP SELECTOR (Year -> Track -> Driver)                   -->
         <!-- ========================================================================= -->
-        <Grid Grid.Row="1">
+        <Border Grid.Row="1"
+                Background="{StaticResource PanelBackgroundBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,0,0,1"
+                Padding="14,0">
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <TextBlock Text="REFERENCE LAP"
+                           Style="{StaticResource TelemetryLabelText}"
+                           Foreground="{StaticResource ForegroundHighlightBrush}"
+                           VerticalAlignment="Center"
+                           Margin="0,0,18,0" />
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="YEAR"
+                               Style="{StaticResource TelemetryLabelText}"
+                               VerticalAlignment="Center"
+                               Margin="0,0,6,0" />
+                    <ComboBox Style="{StaticResource TracksideComboBox}"
+                              Width="70"
+                              ItemsSource="{Binding AvailableYears}"
+                              SelectedItem="{Binding SelectedYear}"
+                              IsEnabled="{Binding CanChangeReference}"
+                              ToolTip="Championship year" />
+
+                    <TextBlock Text="TRACK"
+                               Style="{StaticResource TelemetryLabelText}"
+                               VerticalAlignment="Center"
+                               Margin="12,0,6,0" />
+                    <ComboBox Style="{StaticResource TracksideComboBox}"
+                              Width="150"
+                              ItemsSource="{Binding AvailableTracks}"
+                              SelectedItem="{Binding SelectedTrack}"
+                              IsEnabled="{Binding CanChangeReference}"
+                              ToolTip="Circuit" />
+
+                    <TextBlock Text="DRIVER"
+                               Style="{StaticResource TelemetryLabelText}"
+                               VerticalAlignment="Center"
+                               Margin="12,0,6,0" />
+                    <ComboBox Style="{StaticResource TracksideComboBox}"
+                              Width="70"
+                              Foreground="{StaticResource ReferenceTraceBrush}"
+                              ItemsSource="{Binding AvailableDrivers}"
+                              SelectedItem="{Binding SelectedDriver}"
+                              IsEnabled="{Binding CanChangeReference}"
+                              ToolTip="Driver's fastest qualifying lap" />
+
+                    <TextBlock Text="LAP"
+                               Style="{StaticResource TelemetryLabelText}"
+                               VerticalAlignment="Center"
+                               Margin="12,0,6,0" />
+                    <TextBlock Text="{Binding ReferenceLapTimeString}"
+                               FontFamily="{StaticResource TelemetryNumberFontFamily}"
+                               FontSize="11"
+                               FontWeight="Bold"
+                               Foreground="{StaticResource ForegroundHighlightBrush}"
+                               VerticalAlignment="Center" />
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
+        <!-- ========================================================================= -->
+        <!-- ROW 2: MAIN TRACE WORKSPACE & TELEMETRY SIDEBAR                           -->
+        <!-- ========================================================================= -->
+        <Grid Grid.Row="2">
             <Grid.ColumnDefinitions>
                 <!-- Column 0: 3 Synchronized Plot Trace Panes -->
                 <ColumnDefinition Width="*" />
@@ -185,7 +210,7 @@
             </Grid.ColumnDefinitions>
 
             <!-- ===================================================================== -->
-            <!-- LEFT AREA: THREE SYNCHRONIZED TRACE PANES (Task 4.2 Integration Target) -->
+            <!-- LEFT AREA: THREE SYNCHRONIZED TRACE PANES (Task 4.2 ScottPlot) -->
             <!-- ===================================================================== -->
             <Grid Grid.Column="0">
                 <Grid.RowDefinitions>
@@ -229,25 +254,17 @@
 
                                     <!-- Reference Trace Legend -->
                                     <Rectangle Width="10" Height="10" Fill="{StaticResource ReferenceTraceBrush}" VerticalAlignment="Center" Margin="0,0,4,0" />
-                                    <TextBlock Text="HAMILTON 2023 REF" Style="{StaticResource TelemetryLabelText}" VerticalAlignment="Center" />
+                                    <TextBlock Text="{Binding ReferenceLabel}" Style="{StaticResource TelemetryLabelText}" VerticalAlignment="Center" />
                                 </StackPanel>
                             </Grid>
                         </Border>
 
-                        <!-- Pane 1 Plot Container (Placeholder for Task 4.2 ScottPlot WpfPlot) -->
+                        <!-- Pane 1 Plot Container (ScottPlot WpfPlot) -->
                         <Border Grid.Row="1"
                                 x:Name="SpeedPlotHost"
                                 Background="{StaticResource CanvasBackgroundBrush}"
                                 SnapsToDevicePixels="True">
-                            <!-- Clean Gridline Overlay Placeholder -->
-                            <Grid>
-                                <TextBlock Text="[ Task 4.2 ScottPlot Speed Trace Canvas: Live Speed (Cyan) vs Hamilton Baseline (Yellow) ]"
-                                           HorizontalAlignment="Center"
-                                           VerticalAlignment="Center"
-                                           FontFamily="{StaticResource TelemetryNumberFontFamily}"
-                                           FontSize="11"
-                                           Foreground="{StaticResource ForegroundMutedBrush}" />
-                            </Grid>
+                            <sp:WpfPlot x:Name="SpeedPlot" />
                         </Border>
                     </Grid>
                 </Border>
@@ -290,19 +307,12 @@
                             </Grid>
                         </Border>
 
-                        <!-- Pane 2 Plot Container (Placeholder for Task 4.2 ScottPlot WpfPlot) -->
+                        <!-- Pane 2 Plot Container (ScottPlot WpfPlot) -->
                         <Border Grid.Row="1"
                                 x:Name="PedalPlotHost"
                                 Background="{StaticResource CanvasBackgroundBrush}"
                                 SnapsToDevicePixels="True">
-                            <Grid>
-                                <TextBlock Text="[ Task 4.2 ScottPlot Pedal Inputs Canvas: Throttle (Green) vs Brake (Red) ]"
-                                           HorizontalAlignment="Center"
-                                           VerticalAlignment="Center"
-                                           FontFamily="{StaticResource TelemetryNumberFontFamily}"
-                                           FontSize="11"
-                                           Foreground="{StaticResource ForegroundMutedBrush}" />
-                            </Grid>
+                            <sp:WpfPlot x:Name="PedalPlot" />
                         </Border>
                     </Grid>
                 </Border>
@@ -345,19 +355,12 @@
                             </Grid>
                         </Border>
 
-                        <!-- Pane 3 Plot Container (Placeholder for Task 4.2 ScottPlot WpfPlot) -->
+                        <!-- Pane 3 Plot Container (ScottPlot WpfPlot) -->
                         <Border Grid.Row="1"
                                 x:Name="DeltaPlotHost"
                                 Background="{StaticResource CanvasBackgroundBrush}"
                                 SnapsToDevicePixels="True">
-                            <Grid>
-                                <TextBlock Text="[ Task 4.2 ScottPlot Continuous Delta Time Canvas: Δt = t_ref(s) - t_sim(s) ]"
-                                           HorizontalAlignment="Center"
-                                           VerticalAlignment="Center"
-                                           FontFamily="{StaticResource TelemetryNumberFontFamily}"
-                                           FontSize="11"
-                                           Foreground="{StaticResource ForegroundMutedBrush}" />
-                            </Grid>
+                            <sp:WpfPlot x:Name="DeltaPlot" />
                         </Border>
                     </Grid>
                 </Border>
@@ -660,9 +663,9 @@
         </Grid>
 
         <!-- ========================================================================= -->
-        <!-- ROW 2: BOTTOM ENGINEERING STATUS BAR                                      -->
+        <!-- ROW 3: BOTTOM ENGINEERING STATUS BAR                                      -->
         <!-- ========================================================================= -->
-        <Border Grid.Row="2"
+        <Border Grid.Row="3"
                 Background="{StaticResource HeaderBackgroundBrush}"
                 BorderBrush="{StaticResource BorderBrush}"
                 BorderThickness="0,1,0,0"
