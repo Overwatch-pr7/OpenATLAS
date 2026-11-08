@@ -13,7 +13,7 @@ namespace OpenATLAS.Tests.Reference
     {
         private static string GetMonzaParquetPath()
         {
-            return Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../references/2023/Monza/HAM.parquet"));
+            return Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../Data/monza_2023_HAM.parquet"));
         }
 
         [Fact]

@@ -19,6 +19,26 @@ namespace OpenATLAS.Tests.Collections
         }
 
         [Fact]
+        public void Version_ChangesOnPushAndClear()
+        {
+            var buffer = new CircularBuffer<int>(2);
+            long v0 = buffer.Version;
+
+            buffer.Push(1);
+            long v1 = buffer.Version;
+            Assert.NotEqual(v0, v1);
+
+            // Overwriting when full must also count as a change
+            buffer.Push(2);
+            buffer.Push(3);
+            long v2 = buffer.Version;
+            Assert.NotEqual(v1, v2);
+
+            buffer.Clear();
+            Assert.NotEqual(v2, buffer.Version);
+        }
+
+        [Fact]
         public void InitialState_IsEmpty_ZeroCount()
         {
             var buffer = new CircularBuffer<int>(5);

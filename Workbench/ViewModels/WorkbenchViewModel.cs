@@ -2,7 +2,6 @@ using System;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Windows;
 using System.Windows.Input;
 using OpenATLAS.Core.Collections;
 using OpenATLAS.Core.Engine;
@@ -21,8 +20,9 @@ namespace OpenATLAS.Workbench.ViewModels
     public class WorkbenchViewModel : ViewModelBase, IDisposable
     {
         // Default circular buffer capacity for high-frequency 60Hz delta snapshots.
+        // 10,000 samples is ~166 s at 60 Hz, enough to hold a full lap for the live traces.
         // Pre-allocated upfront to guarantee zero GC heap allocations during live ingestion.
-        public const int DefaultBufferCapacity = 1000;
+        public const int DefaultBufferCapacity = 10_000;
 
         private readonly CircularBuffer<LiveDeltaSnapshot> _circularBuffer;
         private readonly ReferenceLibrary? _library;
@@ -30,6 +30,9 @@ namespace OpenATLAS.Workbench.ViewModels
         private string? _loadedLapPath;
         private LiveDeltaEngine? _deltaEngine;
         private SharedMemoryListener? _sharedMemoryListener;
+
+        // UI thread context (captured in the constructor) for updates coming from background threads
+        private readonly SynchronizationContext? _uiContext;
 
         private CancellationTokenSource? _simulationCts;
         private Task? _simulationTask;
@@ -83,7 +86,7 @@ namespace OpenATLAS.Workbench.ViewModels
         private DateTime _lastPacketTime = DateTime.UtcNow;
 
         /// <summary>
-        /// Command to initiate live shared memory connection to Assetto Corsa Competizione.
+        /// Command to initiate live shared memory connection to Assetto Corsa.
         /// </summary>
         public ICommand ConnectLiveCommand { get; }
 
@@ -122,6 +125,7 @@ namespace OpenATLAS.Workbench.ViewModels
         /// <param name="library">Reference library; when null the 'references' folder is searched for.</param>
         public WorkbenchViewModel(ReferenceLapIndex? referenceLap = null, ReferenceLibrary? library = null)
         {
+            _uiContext = SynchronizationContext.Current;
             _circularBuffer = new CircularBuffer<LiveDeltaSnapshot>(_bufferCapacity);
             _library = library ?? ReferenceLibrary.Find(AppContext.BaseDirectory, Directory.GetCurrentDirectory());
 
@@ -481,8 +485,8 @@ namespace OpenATLAS.Workbench.ViewModels
         #region Ingestion & Calculation Processing
 
         /// <summary>
-        /// Central update handler for receiving a newly computed LiveDeltaSnapshot.
-        /// Updates observable properties on the UI thread and ensures buffer synchronization.
+        /// Pushes a snapshot's values into the bound sidebar properties.
+        /// Called on the UI thread by the 60 Hz render loop (Task 4.3), never per packet.
         /// </summary>
         public void UpdateSnapshot(in LiveDeltaSnapshot snapshot)
         {
@@ -514,6 +518,13 @@ namespace OpenATLAS.Workbench.ViewModels
             BufferCount = _circularBuffer.Count;
         }
 
+        // Runs the action on the UI thread (or directly when there is no UI, e.g. in tests)
+        private void RunOnUiThread(Action action)
+        {
+            if (_uiContext != null) _uiContext.Post(_ => action(), null);
+            else action();
+        }
+
         private void HandleLapCompleted()
         {
             _accumulatedDistance = 0f;
@@ -523,7 +534,7 @@ namespace OpenATLAS.Workbench.ViewModels
 
         #endregion
 
-        #region Live Mode (ACC Shared Memory)
+        #region Live Mode (Assetto Corsa Shared Memory)
 
         public void StartLiveIngestion()
         {
@@ -543,21 +554,37 @@ namespace OpenATLAS.Workbench.ViewModels
                 _accumulatedLapTime = 0f;
 
                 _sharedMemoryListener.OnTelemetryUpdated += OnLiveTelemetryReceived;
+                _sharedMemoryListener.OnConnectionChanged += OnAcConnectionChanged;
                 _sharedMemoryListener.Start();
 
+                // The listener keeps looking for AC in the background, so this can be clicked before the game starts
                 IsLiveConnected = true;
-                ConnectionStatus = "LIVE ACC (60Hz)";
-                StatusMessage = "Listening to ACC Shared Memory (Local\\acpmf_physics)...";
+                ConnectionStatus = "WAITING FOR AC";
+                StatusMessage = "Waiting for Assetto Corsa... load a session and it will connect automatically.";
             }
             catch (Exception ex)
             {
-                StatusMessage = $"Could not start ACC Shared Memory listener: {ex.Message}";
+                StatusMessage = $"Could not start the Assetto Corsa listener: {ex.Message}";
                 IsLiveConnected = false;
                 ConnectionStatus = "STANDBY";
             }
         }
 
-        private void OnLiveTelemetryReceived(AcPhysicsPacket packet)
+        // Called on the listener thread when AC's shared memory pages are found
+        private void OnAcConnectionChanged(bool connected)
+        {
+            if (!connected) return; // Disconnect is handled by StopLiveIngestion
+
+            RunOnUiThread(() =>
+            {
+                ConnectionStatus = "LIVE AC (60Hz)";
+                StatusMessage = "Connected to Assetto Corsa shared memory.";
+            });
+        }
+
+        // Called on the listener thread for every new AC sample.
+        // The graphics page (lap/pit/pause state) is not used yet.
+        private void OnLiveTelemetryReceived(AcPhysicsPacket packet, AcGraphicsPacket graphics)
         {
             if (_deltaEngine == null || _referenceLap == null) return;
 
@@ -578,17 +605,9 @@ namespace OpenATLAS.Workbench.ViewModels
                 _deltaEngine.Reset();
             }
 
-            LiveDeltaSnapshot snapshot = _deltaEngine.Process(packet, _accumulatedDistance, _accumulatedLapTime);
-
-            // Dispatch update to UI thread if Application dispatcher is present
-            if (Application.Current != null && Application.Current.Dispatcher != null)
-            {
-                Application.Current.Dispatcher.BeginInvoke(() => UpdateSnapshot(snapshot));
-            }
-            else
-            {
-                UpdateSnapshot(snapshot);
-            }
+            // Process() pushes the snapshot into the ring buffer (engine OutputBuffer).
+            // No UI work here: the 60 Hz render loop picks it up (Task 4.3).
+            _deltaEngine.Process(packet, _accumulatedDistance, _accumulatedLapTime);
         }
 
         public void StopLiveIngestion()
@@ -598,6 +617,7 @@ namespace OpenATLAS.Workbench.ViewModels
             if (_sharedMemoryListener != null)
             {
                 _sharedMemoryListener.OnTelemetryUpdated -= OnLiveTelemetryReceived;
+                _sharedMemoryListener.OnConnectionChanged -= OnAcConnectionChanged;
                 _sharedMemoryListener.Stop();
                 _sharedMemoryListener.Dispose();
                 _sharedMemoryListener = null;
@@ -664,16 +684,8 @@ namespace OpenATLAS.Workbench.ViewModels
                         simRpm: refSample.Rpms
                     );
 
+                    // Only feed the ring buffer; the 60 Hz render loop draws it (Task 4.3)
                     _circularBuffer.Push(delta);
-
-                    if (Application.Current != null && Application.Current.Dispatcher != null)
-                    {
-                        _ = Application.Current.Dispatcher.BeginInvoke(() => UpdateSnapshot(delta));
-                    }
-                    else
-                    {
-                        UpdateSnapshot(delta);
-                    }
 
                     await Task.Delay(16, token).ConfigureAwait(false);
                 }

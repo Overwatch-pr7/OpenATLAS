@@ -1,0 +1,10 @@
+# FastF1 download cache: rebuilt automatically by extract_reference.py, not needed by the app
+cache/
+
+# Python
+.venv/
+__pycache__/
+
+# .NET build output
+bin/
+obj/

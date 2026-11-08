@@ -114,7 +114,7 @@ namespace OpenATLAS.Core.Engine
                 simSpeed: packet.SpeedKmh,
                 simThrottle: packet.Gas,
                 simBrake: packet.Brake,
-                simGear: packet.Gear,
+                simGear: packet.DisplayGear, // AC counts R=0, N=1; convert to N=0, 1st=1
                 simRpm: packet.Rpms
             );
 

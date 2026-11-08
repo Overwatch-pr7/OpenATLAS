@@ -89,7 +89,7 @@
                 <!-- Right Action Buttons & Status Badge -->
                 <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
                     <!-- Connect Live Button -->
-                    <Button Content="CONNECT ACC"
+                    <Button Content="CONNECT AC"
                             Style="{StaticResource TracksidePrimaryButton}"
                             Command="{Binding ConnectLiveCommand}"
                             Margin="0,0,6,0" />
@@ -161,16 +161,16 @@
                               IsEnabled="{Binding CanChangeReference}"
                               ToolTip="Championship year" />
 
-                    <TextBlock Text="TRACK"
+                    <TextBlock Text="GRAND PRIX"
                                Style="{StaticResource TelemetryLabelText}"
                                VerticalAlignment="Center"
                                Margin="12,0,6,0" />
                     <ComboBox Style="{StaticResource TracksideComboBox}"
-                              Width="150"
+                              Width="210"
                               ItemsSource="{Binding AvailableTracks}"
                               SelectedItem="{Binding SelectedTrack}"
                               IsEnabled="{Binding CanChangeReference}"
-                              ToolTip="Circuit" />
+                              ToolTip="Grand Prix" />
 
                     <TextBlock Text="DRIVER"
                                Style="{StaticResource TelemetryLabelText}"
@@ -699,7 +699,7 @@
                 <!-- Ingestion Specification -->
                 <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
                     <TextBlock Text="SOURCE: " Style="{StaticResource TelemetryLabelText}" />
-                    <TextBlock Text="ACC SHARED MEMORY (Local\acpmf_physics) | CLOCK: 60Hz"
+                    <TextBlock Text="ASSETTO CORSA SHARED MEMORY (Local\acpmf_*) | CLOCK: 60Hz"
                                FontFamily="{StaticResource TelemetryNumberFontFamily}"
                                FontSize="11"
                                FontWeight="SemiBold"

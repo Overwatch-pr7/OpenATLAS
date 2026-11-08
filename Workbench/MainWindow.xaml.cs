@@ -15,6 +15,7 @@ namespace OpenATLAS.Workbench
     {
         private readonly WorkbenchViewModel _viewModel;
         private TracePanes _tracePanes = null!;
+        private LiveRenderLoop _renderLoop = null!;
 
         public MainWindow()
         {
@@ -61,6 +62,10 @@ namespace OpenATLAS.Workbench
             DeltaPlot.Plot.Axes.Link(PedalPlot, x: true, y: false);
 
             RefreshPlots();
+
+            // Task 4.3: the only place live data reaches the charts, at a fixed 60 Hz
+            _renderLoop = new LiveRenderLoop(_viewModel.CircularBuffer, _tracePanes, _viewModel, RefreshPlots);
+            _renderLoop.Start();
         }
 
         /// <summary>
@@ -90,6 +95,7 @@ namespace OpenATLAS.Workbench
         protected override void OnClosing(CancelEventArgs e)
         {
             base.OnClosing(e);
+            _renderLoop.Dispose();
             _viewModel.ReferenceLapChanged -= OnReferenceLapChanged;
             _viewModel.Dispose();
         }

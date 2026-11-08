@@ -15,6 +15,10 @@ namespace OpenATLAS.Core.Collections
         private int _start;
         private int _count;
 
+        // Incremented on every Push/Clear so readers (e.g. the UI render loop) can cheaply
+        // tell whether the contents changed since they last looked.
+        private long _version;
+
         public CircularBuffer(int capacity)
         {
             if (capacity <= 0)
@@ -37,6 +41,18 @@ namespace OpenATLAS.Core.Collections
                 lock (_syncLock)
                 {
                     return _count;
+                }
+            }
+        }
+
+        // Change counter: a different value than last time means the buffer has new contents.
+        public long Version
+        {
+            get
+            {
+                lock (_syncLock)
+                {
+                    return _version;
                 }
             }
         }
@@ -81,6 +97,8 @@ namespace OpenATLAS.Core.Collections
                     _buffer[_start] = item;
                     _start = (_start + 1) % _capacity;
                 }
+
+                _version++;
             }
         }
 
@@ -263,6 +281,7 @@ namespace OpenATLAS.Core.Collections
 
                 _start = 0;
                 _count = 0;
+                _version++;
             }
         }
     }

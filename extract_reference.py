@@ -3,11 +3,10 @@ OpenATLAS - Phase 1: Reference Data Pipeline
 Task 1.1: FastF1 Session Downloader
 
 This script uses the `fastf1` library to download real-world telemetry from
-an official F1 session. It serves as the baseline data for the OpenATLAS telemetry tool.
+official F1 sessions. It serves as the baseline data for the OpenATLAS telemetry tool.
+Historical sessions are public: no F1 account or login is needed.
 
 --- HELP BLOCK: Selecting Races ---
-You can select different sessions by changing the parameters in fastf1.get_session(year, Grand_Prix, Session).
-
 1. Year: The championship year (e.g., 2021, 2022, 2023, 2024).
 2. Grand Prix: The name of the race or its location. You can use common names:
    - "Monza" or "Italian Grand Prix"
@@ -20,152 +19,164 @@ You can select different sessions by changing the parameters in fastf1.get_sessi
    - 'S' (Sprint)
    - 'SQ' (Sprint Shootout)
    - 'R' (Race)
-
-Example Usage:
-session = fastf1.get_session(2023, 'Monza', 'Q') # 2023 Italian GP Qualifying
-session = fastf1.get_session(2021, 'Abu Dhabi', 'R') # 2021 Abu Dhabi GP Race
 -----------------------------------
 
 --- Reference Library (used by the Workbench dropdowns) ---
-Laps are saved as: references/<Year>/<Track>/<DRIVER>.parquet
-<Track> is the event location (e.g. 'Monza', 'Silverstone', 'Spa-Francorchamps').
-
-Sources:
-  openf1 (default) - free OpenF1 API, 2023 season onward, no account needed
-  fastf1           - FastF1, needs an F1TV sign-in (python -m fastf1 auth f1tv --authenticate)
-                     unless the session is already in ./cache
+Laps are saved as: references/<Year>/<Grand Prix>/<DRIVER>.parquet
+(e.g. references/2021/Italian Grand Prix/HAM.parquet). One file per driver: their fastest lap.
+The event name is used rather than the circuit because some circuits host two events
+in a season (2021: Styrian and Austrian Grand Prix, both at Spielberg).
 
 Command line:
-python extract_reference.py --year 2023 --track Monza --driver HAM   # one driver
-python extract_reference.py --year 2023 --track Monza                # every driver in the session
-python extract_reference.py --year 2024 --track Silverstone --session R
-python extract_reference.py --year 2023 --track Monza --source fastf1
+python extract_reference.py --year 2021                              # every round, every driver
+python extract_reference.py --year 2021 --track Monza                # one Grand Prix, every driver
+python extract_reference.py --year 2021 --track Monza --driver HAM   # one driver
+python extract_reference.py --year 2021 --session R                  # race laps instead of qualifying
+
+Laps that already exist are skipped, so an interrupted season download can simply be re-run.
 -----------------------------------------------------------
 """
 
 import os
+import time
 import argparse
 import fastf1
 import numpy as np
 import pandas as pd
+import pyarrow as pa
+import pyarrow.parquet as pq
 from scipy.interpolate import interp1d
-import openf1_source
 
-def LoadSession(Year: int, GrandPrix: str, SessionType: str):
+CACHE_DIR = 'cache'
+REFERENCE_DIR = 'references'
+
+# Pause between sessions so the timing API is never hammered during a season download
+SESSION_DELAY_S = 3
+
+# Shorter than any F1 circuit: anything below this is a broken or partial lap
+MIN_LAP_LENGTH_M = 3000
+
+# Explicit non-nullable schema: the C# reader (ReferenceLapIndex) reads these columns
+# raw with these exact types, and non-nullable columns carry no definition levels
+REFERENCE_SCHEMA = pa.schema([
+    pa.field('Distance', pa.int32(), nullable=False),
+    pa.field('Speed', pa.float32(), nullable=False),
+    pa.field('Throttle', pa.int8(), nullable=False),
+    pa.field('Brake', pa.int8(), nullable=False),
+    pa.field('RPM', pa.int32(), nullable=False),
+    pa.field('nGear', pa.int8(), nullable=False),
+    pa.field('Time', pa.float32(), nullable=False),
+])
+
+def LoadSession(Year: int, GrandPrix, SessionType: str):
     """
     Downloads and loads a session. One load contains every driver's laps,
     so exporting the whole grid costs a single download.
 
     Args:
-        Year (int): The year of the race (e.g., 2023).
-        GrandPrix (str): The name or location of the Grand Prix (e.g., 'Monza').
+        Year (int): The year of the race (e.g., 2021).
+        GrandPrix (str | int): The name/location of the Grand Prix (e.g., 'Monza') or its round number.
         SessionType (str): The session identifier (e.g., 'Q' for Qualifying).
     """
-    print(f"Loading session: {Year} {GrandPrix} - {SessionType}")
-
-    # Enable cache to speed up subsequent requests and prevent redundant API calls
-    # We create the cache directory automatically if it doesn't exist
-    os.makedirs('cache', exist_ok=True)
-    fastf1.Cache.enable_cache('cache')
-
     session = fastf1.get_session(Year, GrandPrix, SessionType)
 
     # Only laps and car telemetry are needed for a reference lap
     session.load(laps=True, telemetry=True, weather=False, messages=False)
-
-    # livetiming.formula1.com needs an F1TV sign-in for sessions not already in the cache;
-    # without it the load "succeeds" but contains no laps
-    try:
-        session.laps
-    except fastf1.exceptions.DataNotLoadedError:
-        raise SystemExit(
-            "\nNo lap data was downloaded for this session.\n"
-            "F1 now requires an F1TV account for timing data. Sign in once with:\n"
-            "    python -m fastf1 auth f1tv\n"
-            "then run this script again.")
     return session
 
 def DownloadSessionData(session, Driver: str):
     """
-    Extracts the fastest lap telemetry for a specific driver from a loaded session.
+    Extracts the fastest lap of a driver from a loaded session as car telemetry
+    with a Distance channel, aligned so Time = 0 s and Distance = 0 m on the start/finish line.
 
     Args:
         session: A session returned by LoadSession.
         Driver (str): The three-letter abbreviation of the driver (e.g., 'HAM' for Lewis Hamilton).
     """
     try:
-        # Pick the fastest lap for the specified driver
         driverLap = session.laps.pick_drivers(Driver).pick_fastest()
-        if driverLap is None or driverLap.empty:
-            print(f"  {Driver}: no timed lap, skipping")
+        if driverLap is None or driverLap.empty or pd.isna(driverLap['LapTime']):
+            print(f"    {Driver}: no timed lap, skipping")
             return None
 
-        # Get the raw telemetry data (Speed, Throttle, Brake, RPM, Gear, etc.)
-        telemetry = driverLap.get_telemetry()
+        lapTime = driverLap['LapTime'].total_seconds()
 
-        print(f"  {Driver}: telemetry extracted ({len(telemetry)} rows)")
-        return telemetry
+        # Car data is ~4 Hz, so the first sample lands a fraction of a second after the line.
+        # Pad by 1 s on both sides, integrate speed into distance, then interpolate exact
+        # rows at the start and finish line.
+        telemetry = driverLap.get_car_data(pad=1, pad_side='both').add_distance()
+        t = telemetry['Time'].dt.total_seconds().values
+        distance = telemetry['Distance'].values - np.interp(0.0, t, telemetry['Distance'].values)
+
+        lapTimes = np.concatenate([[0.0], t[(t > 0) & (t < lapTime)], [lapTime]])
+
+        # The start row is the line by definition; pin it so float error cannot put it a hair past 0 m
+        lapDistance = np.interp(lapTimes, t, distance)
+        lapDistance[0] = 0.0
+
+        return pd.DataFrame({
+            'Distance': lapDistance,
+            'Speed': np.interp(lapTimes, t, telemetry['Speed'].values),
+            'Throttle': np.interp(lapTimes, t, telemetry['Throttle'].values),
+            'Brake': np.interp(lapTimes, t, telemetry['Brake'].astype(float).values),
+            'RPM': np.interp(lapTimes, t, telemetry['RPM'].values),
+            'nGear': np.interp(lapTimes, t, telemetry['nGear'].values),
+            'Time': pd.to_timedelta(lapTimes, unit='s'),
+        })
 
     except Exception as e:
-        print(f"  {Driver}: an error occurred while extracting the lap: {e}")
+        print(f"    {Driver}: an error occurred while extracting the lap: {e}")
         return None
 
 def ResampleTelemetry(telemetryData: pd.DataFrame) -> pd.DataFrame:
     """
     Task 1.2: Distance-Domain Resampling
-    
+
     FastF1 data is sampled based on time, meaning the distance between samples varies
     with the car's speed. To compare our simulator lap directly to the reference lap,
     we need to align them on a common X-axis: distance in meters.
-    
+
     This function interpolates the raw telemetry so we get exactly one sample for
     every 1 meter of the track length.
-    
+
     Args:
-        telemetryData (pd.DataFrame): The raw telemetry DataFrame from FastF1.
-        
+        telemetryData (pd.DataFrame): Lap telemetry with Distance, Speed, Throttle, Brake, RPM, nGear, Time.
+
     Returns:
         pd.DataFrame: A new DataFrame with distance uniformly spaced from 0 to lap length.
     """
-    # Extract the distance array from the raw telemetry.
-    # We create a mask for strictly increasing distances since interp1d requires a strictly monotonic x-axis.
+    # interp1d requires a strictly increasing x-axis, so drop samples where the car did not move
     mask = telemetryData['Distance'].diff() > 0
     # The first row will be NaN after diff(), so we set it to True
     mask.iloc[0] = True
-    
-    cleanTelemetry = telemetryData[mask]
+
+    cleanTelemetry = telemetryData[mask].dropna()
     originalDistance = cleanTelemetry['Distance'].values
-    
+
     # Define our new equidistant distance array: 0, 1, 2, ..., Max Distance (1-meter intervals)
     maxDistance = int(np.floor(originalDistance[-1]))
-    uniformDistance = np.arange(0, maxDistance + 1, 1) 
-    
+    uniformDistance = np.arange(0, maxDistance + 1, 1)
+
     resampledData = {'Distance': uniformDistance}
-    
-    # List of columns we want to interpolate
-    columnsToInterpolate = ['Speed', 'Throttle', 'Brake', 'RPM', 'nGear', 'Time']
-    
-    for col in columnsToInterpolate:
+
+    # Continuous channels interpolate linearly; discrete ones must not be blended:
+    # brake is on/off (nearest sample), gear holds until the next shift (previous sample)
+    interpolationKind = {
+        'Speed': 'linear', 'Throttle': 'linear', 'RPM': 'linear', 'Time': 'linear',
+        'Brake': 'nearest', 'nGear': 'previous',
+    }
+
+    for col, kind in interpolationKind.items():
         if col == 'Time':
             # FastF1 Time is a timedelta. We convert to seconds (float) for interpolation.
             originalValues = cleanTelemetry['Time'].dt.total_seconds().values
         else:
-            originalValues = cleanTelemetry[col].values
-            
-        # Create a linear interpolation function for this specific column
+            originalValues = cleanTelemetry[col].values.astype(float)
+
         # fill_value="extrapolate" handles any tiny edge cases at the start/end of the lap
-        interpFunction = interp1d(originalDistance, originalValues, kind='linear', fill_value="extrapolate")
-        
-        # Calculate the new values at our 1-meter intervals
-        resampledValues = interpFunction(uniformDistance)
-        
-        if col == 'nGear':
-            # Gears are discrete integers, so we round them after interpolation
-            resampledData['nGear'] = np.round(resampledValues).astype(int)
-        else:
-            resampledData[col] = resampledValues
-            
-    # Convert back to a DataFrame for Task 1.3
+        interpFunction = interp1d(originalDistance, originalValues, kind=kind, fill_value="extrapolate")
+        resampledData[col] = interpFunction(uniformDistance)
+
     return pd.DataFrame(resampledData)
 
 def ExportToParquet(df: pd.DataFrame, filename: str):
@@ -173,69 +184,98 @@ def ExportToParquet(df: pd.DataFrame, filename: str):
     Task 1.3: Export telemetry to Parquet format.
     Downcasts data types to save memory and improve load speeds.
     """
-    # Downcast types to save memory (telemetry rarely needs float64)
-    df['Distance'] = df['Distance'].astype('int32')
-    df['Speed'] = df['Speed'].astype('float32')
-    df['Throttle'] = df['Throttle'].astype('int8')
-    # Brake arrives on/off (0-1) from both sources; store it as 0-100% to match throttle
-    df['Brake'] = np.round(df['Brake'] * 100).astype('int8')
-    df['RPM'] = df['RPM'].astype('int32')
-    df['nGear'] = df['nGear'].astype('int8')
-    df['Time'] = df['Time'].astype('float32')
-    
-    # Export to Parquet using the PyArrow engine
+    df = pd.DataFrame({
+        'Distance': df['Distance'].astype('int32'),
+        'Speed': df['Speed'].astype('float32'),
+        'Throttle': np.clip(np.round(df['Throttle']), 0, 100).astype('int8'),
+        # FastF1 brake is on/off (0-1); store it as 0-100% to match throttle
+        'Brake': np.clip(np.round(df['Brake'] * 100), 0, 100).astype('int8'),
+        'RPM': np.round(df['RPM']).astype('int32'),
+        'nGear': np.round(df['nGear']).astype('int8'),
+        'Time': df['Time'].astype('float32'),
+    })
+
     os.makedirs(os.path.dirname(filename) or '.', exist_ok=True)
-    df.to_parquet(filename, engine='pyarrow', index=False)
-    print(f"Successfully exported to {filename}")
+    table = pa.Table.from_pandas(df, schema=REFERENCE_SCHEMA, preserve_index=False)
+    pq.write_table(table, filename, compression='snappy')
 
-def ReferencePath(Year: int, Track: str, Driver: str) -> str:
-    """Location of a reference lap inside the library: references/<Year>/<Track>/<DRIVER>.parquet"""
-    return os.path.join('references', str(Year), Track, f"{Driver.upper()}.parquet")
+def ReferencePath(Year: int, GrandPrix: str, Driver: str) -> str:
+    """Location of a reference lap inside the library: references/<Year>/<Grand Prix>/<DRIVER>.parquet"""
+    return os.path.join(REFERENCE_DIR, str(Year), GrandPrix, f"{Driver.upper()}.parquet")
 
-def ExportLap(telemetryData, Year: int, Track: str, Driver: str) -> bool:
-    """Task 1.2 + 1.3: resample one lap to 1-meter intervals and save it to the library."""
-    if telemetryData is None:
-        return False
-    resampledTelemetry = ResampleTelemetry(telemetryData)
-    ExportToParquet(resampledTelemetry, ReferencePath(Year, Track, Driver))
-    return True
+def ExportSession(Year: int, GrandPrix, SessionType: str, Driver: str = None) -> int:
+    """Downloads one session and exports the fastest lap of every requested driver. Returns laps written."""
+    session = LoadSession(Year, GrandPrix, SessionType)
+    eventName = session.event['EventName']
 
-def RunFastF1(args) -> tuple:
-    session = LoadSession(args.year, args.track, args.session)
-    trackName = session.event['Location']
-    drivers = [args.driver.upper()] if args.driver else sorted(session.laps['Driver'].unique())
+    # Without laps the session either was not run or its timing data is unavailable
+    try:
+        laps = session.laps
+    except fastf1.exceptions.DataNotLoadedError:
+        laps = pd.DataFrame()
+    if laps.empty:
+        print(f"    no lap data available for {eventName} ({SessionType}), skipping")
+        return 0
 
-    print(f"\nExporting {len(drivers)} driver(s) for {args.year} {trackName}...")
-    exported = sum(ExportLap(DownloadSessionData(session, d), args.year, trackName, d) for d in drivers)
-    return exported, trackName
-
-def RunOpenF1(args) -> tuple:
-    session = openf1_source.FindSession(args.year, args.track, args.session)
-    trackName = session['location']
-    driverNumbers = openf1_source.GetDrivers(session)
-    drivers = [args.driver.upper()] if args.driver else sorted(driverNumbers)
-
-    print(f"Exporting {len(drivers)} driver(s) for {args.year} {trackName} ({session['session_name']}) from OpenF1...")
+    drivers = [Driver.upper()] if Driver else sorted(laps['Driver'].dropna().unique())
     exported = 0
     for driver in drivers:
-        if driver not in driverNumbers:
-            print(f"  {driver}: not in this session, skipping")
+        path = ReferencePath(Year, eventName, driver)
+        if os.path.exists(path):
             continue
-        lap = openf1_source.DownloadFastestLap(session, driverNumbers[driver])
-        print(f"  {driver}: " + ("lap downloaded" if lap is not None else "no timed lap, skipping"))
-        exported += ExportLap(lap, args.year, trackName, driver)
-    return exported, trackName
+
+        telemetryData = DownloadSessionData(session, driver)
+        if telemetryData is None:
+            continue
+
+        # Task 1.2 Execution: Resample to 1-meter intervals
+        resampledTelemetry = ResampleTelemetry(telemetryData)
+        if resampledTelemetry['Distance'].iloc[-1] < MIN_LAP_LENGTH_M:
+            print(f"    {driver}: lap only {resampledTelemetry['Distance'].iloc[-1]} m long, skipping")
+            continue
+
+        # Task 1.3 Execution: Export to Parquet
+        ExportToParquet(resampledTelemetry, path)
+        exported += 1
+
+    print(f"    {exported} new lap(s) saved to {os.path.join(REFERENCE_DIR, str(Year), eventName)}")
+    return exported
+
+def ExportSeason(Year: int, SessionType: str, Driver: str = None) -> int:
+    """Exports every Grand Prix of a season, round by round. Returns laps written."""
+    schedule = fastf1.get_event_schedule(Year, include_testing=False)
+    print(f"{Year}: {len(schedule)} rounds\n")
+
+    exported = 0
+    for _, event in schedule.iterrows():
+        roundNumber = int(event['RoundNumber'])
+        print(f"=== Round {roundNumber:02d}: {event['EventName']} ===")
+        try:
+            exported += ExportSession(Year, roundNumber, SessionType, Driver)
+        except Exception as e:
+            # One failed round must not stop the rest of the season
+            print(f"    [ERROR] {e}")
+        time.sleep(SESSION_DELAY_S)
+
+    return exported
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Export fastest laps into the OpenATLAS reference library.")
-    parser.add_argument('--year', type=int, default=2023, help="Championship year, e.g. 2023")
-    parser.add_argument('--track', default='Monza', help="Grand Prix location, e.g. 'Monza' or 'Silverstone'")
+    parser = argparse.ArgumentParser(description="Export FastF1 fastest laps into the OpenATLAS reference library.")
+    parser.add_argument('--year', type=int, default=2021, help="Championship year (default 2021)")
+    parser.add_argument('--track', default=None, help="Grand Prix name or location, e.g. 'Monza'. Omit for the whole season.")
     parser.add_argument('--session', default='Q', help="Session: FP1, FP2, FP3, Q, S, SQ, R (default Q)")
     parser.add_argument('--driver', default=None, help="Three-letter code, e.g. HAM. Omit to export every driver.")
-    parser.add_argument('--source', choices=['openf1', 'fastf1'], default='openf1', help="Data source (default openf1)")
     args = parser.parse_args()
 
-    # Task 1.1 Execution: Download the session once, then every requested driver
-    exported, trackName = RunOpenF1(args) if args.source == 'openf1' else RunFastF1(args)
+    # Enable cache to speed up subsequent requests and prevent redundant API calls
+    os.makedirs(CACHE_DIR, exist_ok=True)
+    fastf1.Cache.enable_cache(CACHE_DIR)
+    fastf1.set_log_level('WARNING')
 
-    print(f"\nDone. {exported} reference lap(s) saved under references/{args.year}/{trackName}/")
+    # Task 1.1 Execution: Download the requested session(s)
+    if args.track:
+        total = ExportSession(args.year, args.track, args.session, args.driver)
+    else:
+        total = ExportSeason(args.year, args.session, args.driver)
+
+    print(f"\nDone. {total} new reference lap(s) saved under {REFERENCE_DIR}/{args.year}/")

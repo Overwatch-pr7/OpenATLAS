@@ -10,10 +10,18 @@ using OpenATLAS.Core.Reference;
 
 namespace OpenATLAS.ConsoleApp
 {
+    [System.Runtime.Versioning.SupportedOSPlatform("windows")] // Live mode uses Windows shared memory
     class Program
     {
         static async Task Main(string[] args)
         {
+            // Shortcut straight to the AC shared memory monitor (no reference lap needed)
+            if (args.Contains("--ac-monitor"))
+            {
+                AcMonitor.Run();
+                return;
+            }
+
             Console.Title = "OpenATLAS - Phase 3 Live Telemetry & Delta Workbench Monitor";
             Console.ForegroundColor = ConsoleColor.Cyan;
             Console.WriteLine("===============================================================================");
@@ -56,19 +64,24 @@ namespace OpenATLAS.ConsoleApp
                 Console.WriteLine("\n>>> [LAP COMPLETED] Start/Finish line crossed! Lap distance reset. <<<\n");
                 Console.ResetColor();
             };
-            Console.WriteLine("[3/3] Initialized LiveDeltaEngine (Hamilton 2023 Monza Q baseline)\n");
+            Console.WriteLine("[3/3] Initialized LiveDeltaEngine (Hamilton 2021 Italian GP Q baseline)\n");
 
             // Select Execution Mode
             Console.WriteLine("-------------------------------------------------------------------------------");
             Console.WriteLine("Select Test Mode:");
-            Console.WriteLine("  [1] Live Assetto Corsa Competizione (Connect to ACC Shared Memory)");
+            Console.WriteLine("  [1] Live Assetto Corsa (Connect to AC Shared Memory)");
             Console.WriteLine("  [2] Simulated Monza Lap Dry-Run (Verifies Phase 3 pipeline without game running)");
-            Console.Write("Enter option (1 or 2, default is 1): ");
-            
+            Console.WriteLine("  [3] AC Shared Memory Monitor (Shows everything read from the game)");
+            Console.Write("Enter option (1, 2 or 3, default is 1): ");
+
             string? choice = Console.ReadLine()?.Trim();
             if (choice == "2")
             {
                 await RunSimulatedDryRunAsync(referenceLap, deltaEngine, circularBuffer);
+            }
+            else if (choice == "3")
+            {
+                AcMonitor.Run();
             }
             else
             {
@@ -76,25 +89,29 @@ namespace OpenATLAS.ConsoleApp
             }
         }
 
-        // Mode 1: Live ACC Shared Memory Ingestion
+        // Mode 1: Live Assetto Corsa Shared Memory Ingestion
         private static void RunLiveSharedMemoryMonitor(
             LiveDeltaEngine deltaEngine,
             CircularBuffer<LiveDeltaSnapshot> circularBuffer,
             ReferenceLapIndex referenceLap)
         {
             Console.ForegroundColor = ConsoleColor.Yellow;
-            Console.WriteLine("\n[WAITING] Listening for Assetto Corsa Competizione (`Local\\acpmf_physics`)...");
-            Console.WriteLine("Start driving in ACC. Live telemetry and real-time Delta will display below.\n");
+            Console.WriteLine("\n[WAITING] Listening for Assetto Corsa (`Local\\acpmf_*`)...");
+            Console.WriteLine("Start driving in AC. Live telemetry and real-time Delta will display below.\n");
             Console.ResetColor();
 
             using var listener = new SharedMemoryListener();
+            listener.OnConnectionChanged += connected =>
+            {
+                if (connected) Console.WriteLine("[CONNECTED] Assetto Corsa shared memory found.\n");
+            };
 
             float accumulatedDistance = 0f;
             float accumulatedLapTime = 0f;
             DateTime lastPacketTime = DateTime.UtcNow;
             int frameCount = 0;
 
-            listener.OnTelemetryUpdated += (packet) =>
+            listener.OnTelemetryUpdated += (packet, graphics) =>
             {
                 DateTime now = DateTime.UtcNow;
                 float dt = (float)(now - lastPacketTime).TotalSeconds;
@@ -221,7 +238,7 @@ namespace OpenATLAS.ConsoleApp
 
         private static string FindReferenceParquetFile()
         {
-            const string defaultLap = "references/2023/Monza/HAM.parquet";
+            const string defaultLap = "references/2021/Italian Grand Prix/HAM.parquet";
             string[] candidatePaths = [
                 defaultLap,
                 "../" + defaultLap,

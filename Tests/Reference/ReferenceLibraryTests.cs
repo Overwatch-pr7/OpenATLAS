@@ -9,7 +9,7 @@ namespace OpenATLAS.Tests.Reference
     public sealed class TempReferenceLibrary : IDisposable
     {
         public static readonly string SourceLapPath =
-            Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../references/2023/Monza/HAM.parquet"));
+            Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../Data/monza_2023_HAM.parquet"));
 
         public string RootPath { get; } = Path.Combine(Path.GetTempPath(), "openatlas-refs-" + Guid.NewGuid().ToString("N"));
 
@@ -85,7 +85,20 @@ namespace OpenATLAS.Tests.Reference
             var library = ReferenceLibrary.Find(AppContext.BaseDirectory);
 
             Assert.NotNull(library);
-            Assert.Contains("2023", library.GetYears());
+            Assert.Contains("2021", library.GetYears());
+        }
+
+        [Fact]
+        public void Library2021Lap_LoadsFromNonNullableSchema()
+        {
+            var library = ReferenceLibrary.Find(AppContext.BaseDirectory)!;
+
+            var lap = ReferenceLapIndex.FromParquetFile(library.GetLapPath("2021", "Italian Grand Prix", "HAM"));
+
+            Assert.InRange(lap.TrackLengthMeters, 5700, 5800);
+            Assert.Equal(0f, lap.Time[0]);
+            Assert.InRange(lap.TotalLapTimeSeconds, 79f, 80f);
+            Assert.Equal(100, lap.Brake.Max());
         }
 
         [Fact]

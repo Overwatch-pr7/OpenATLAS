@@ -43,7 +43,7 @@ namespace OpenATLAS.Tests.Engine
 
         private static string GetMonzaParquetPath()
         {
-            return Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../references/2023/Monza/HAM.parquet"));
+            return Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../Data/monza_2023_HAM.parquet"));
         }
 
         [Fact]
@@ -147,6 +147,7 @@ namespace OpenATLAS.Tests.Engine
             Assert.Equal(205f, result.SimSpeed);
             Assert.Equal(95f, result.SimThrottle, precision: 1); // 0.95 converted to 95%
             Assert.Equal(5f, result.SimBrake, precision: 1);    // 0.05 converted to 5%
+            Assert.Equal(3, result.SimGear);                     // AC raw gear 4 (R=0, N=1) is 3rd gear
             Assert.Equal(0.05f, result.DeltaTime, precision: 3);
         }
 
