@@ -1,0 +1,120 @@
+{
+  "event": "Spanish Grand Prix",
+  "location": "Barcelona",
+  "lengthMeters": 4670.0,
+  "sectors": [
+    {
+      "number": 1,
+      "startMeters": 0.0,
+      "endMeters": 1622.7
+    },
+    {
+      "number": 2,
+      "startMeters": 1622.7,
+      "endMeters": 3388.7
+    },
+    {
+      "number": 3,
+      "startMeters": 3388.7,
+      "endMeters": 4670.0
+    }
+  ],
+  "corners": [
+    {
+      "number": 1,
+      "letter": "",
+      "distanceMeters": 840.4,
+      "name": ""
+    },
+    {
+      "number": 2,
+      "letter": "",
+      "distanceMeters": 925.2,
+      "name": ""
+    },
+    {
+      "number": 3,
+      "letter": "",
+      "distanceMeters": 1168.2,
+      "name": ""
+    },
+    {
+      "number": 4,
+      "letter": "",
+      "distanceMeters": 1741.7,
+      "name": ""
+    },
+    {
+      "number": 5,
+      "letter": "",
+      "distanceMeters": 2122.7,
+      "name": ""
+    },
+    {
+      "number": 6,
+      "letter": "",
+      "distanceMeters": 2364.6,
+      "name": ""
+    },
+    {
+      "number": 7,
+      "letter": "",
+      "distanceMeters": 2547.5,
+      "name": ""
+    },
+    {
+      "number": 8,
+      "letter": "",
+      "distanceMeters": 2637.1,
+      "name": ""
+    },
+    {
+      "number": 9,
+      "letter": "",
+      "distanceMeters": 2925.4,
+      "name": ""
+    },
+    {
+      "number": 10,
+      "letter": "",
+      "distanceMeters": 3499.0,
+      "name": ""
+    },
+    {
+      "number": 11,
+      "letter": "",
+      "distanceMeters": 3638.2,
+      "name": ""
+    },
+    {
+      "number": 12,
+      "letter": "",
+      "distanceMeters": 3781.7,
+      "name": ""
+    },
+    {
+      "number": 13,
+      "letter": "",
+      "distanceMeters": 4025.9,
+      "name": ""
+    },
+    {
+      "number": 14,
+      "letter": "",
+      "distanceMeters": 4156.5,
+      "name": ""
+    },
+    {
+      "number": 15,
+      "letter": "",
+      "distanceMeters": 4203.5,
+      "name": ""
+    },
+    {
+      "number": 16,
+      "letter": "",
+      "distanceMeters": 4371.9,
+      "name": ""
+    }
+  ]
+}

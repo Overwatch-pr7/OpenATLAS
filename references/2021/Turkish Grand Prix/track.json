@@ -1,0 +1,108 @@
+{
+  "event": "Turkish Grand Prix",
+  "location": "Istanbul",
+  "lengthMeters": 5260.1,
+  "sectors": [
+    {
+      "number": 1,
+      "startMeters": 0.0,
+      "endMeters": 1930.9
+    },
+    {
+      "number": 2,
+      "startMeters": 1930.9,
+      "endMeters": 3932.2
+    },
+    {
+      "number": 3,
+      "startMeters": 3932.2,
+      "endMeters": 5260.1
+    }
+  ],
+  "corners": [
+    {
+      "number": 1,
+      "letter": "",
+      "distanceMeters": 455.3,
+      "name": ""
+    },
+    {
+      "number": 2,
+      "letter": "",
+      "distanceMeters": 793.5,
+      "name": ""
+    },
+    {
+      "number": 3,
+      "letter": "",
+      "distanceMeters": 1182.3,
+      "name": ""
+    },
+    {
+      "number": 4,
+      "letter": "",
+      "distanceMeters": 1306.7,
+      "name": ""
+    },
+    {
+      "number": 5,
+      "letter": "",
+      "distanceMeters": 1468.1,
+      "name": ""
+    },
+    {
+      "number": 6,
+      "letter": "",
+      "distanceMeters": 1560.0,
+      "name": ""
+    },
+    {
+      "number": 7,
+      "letter": "",
+      "distanceMeters": 2083.9,
+      "name": ""
+    },
+    {
+      "number": 8,
+      "letter": "",
+      "distanceMeters": 2699.4,
+      "name": ""
+    },
+    {
+      "number": 9,
+      "letter": "",
+      "distanceMeters": 3451.7,
+      "name": ""
+    },
+    {
+      "number": 10,
+      "letter": "",
+      "distanceMeters": 3531.5,
+      "name": ""
+    },
+    {
+      "number": 11,
+      "letter": "",
+      "distanceMeters": 4054.3,
+      "name": ""
+    },
+    {
+      "number": 12,
+      "letter": "",
+      "distanceMeters": 4815.2,
+      "name": ""
+    },
+    {
+      "number": 13,
+      "letter": "",
+      "distanceMeters": 4926.0,
+      "name": ""
+    },
+    {
+      "number": 14,
+      "letter": "",
+      "distanceMeters": 5006.4,
+      "name": ""
+    }
+  ]
+}

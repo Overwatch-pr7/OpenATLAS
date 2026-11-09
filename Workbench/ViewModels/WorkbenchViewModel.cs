@@ -1,4 +1,5 @@
 using System;
+using System.Collections.ObjectModel;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
@@ -80,6 +81,11 @@ namespace OpenATLAS.Workbench.ViewModels
         private int _bufferCount;
         private int _bufferCapacity = DefaultBufferCapacity;
 
+        // Sector analysis: index of the sector the car is in (-1 = none yet) and the
+        // overall delta when it entered that sector
+        private int _activeSector = -1;
+        private float _sectorStartDelta;
+
         // Live Ingestion Tracking State
         private float _accumulatedDistance;
         private float _accumulatedLapTime;
@@ -112,6 +118,11 @@ namespace OpenATLAS.Workbench.ViewModels
         public ICommand ResetLapCommand { get; }
 
         public CircularBuffer<LiveDeltaSnapshot> CircularBuffer => _circularBuffer;
+
+        /// <summary>Sector analysis rows for the selected Grand Prix (empty when it has no track.json).</summary>
+        public ObservableCollection<SectorViewModel> Sectors { get; } = [];
+
+        public bool HasSectors => Sectors.Count > 0;
         public ReferenceLapIndex? ReferenceLap => _referenceLap;
         public LiveDeltaEngine? DeltaEngine => _deltaEngine;
         public ReferenceLibrary? Library => _library;
@@ -473,11 +484,91 @@ namespace OpenATLAS.Workbench.ViewModels
                 ReferenceSession = $"{_selectedYear} {_selectedTrack}";
                 OnPropertyChanged(nameof(ReferenceLabel));
                 InitializeReference(lap);
+                LoadSectors(lap);
             }
             catch (Exception ex)
             {
                 StatusMessage = $"Failed to load reference lap '{path}': {ex.Message}";
             }
+        }
+
+        /// <summary>
+        /// Rebuilds the sector analysis rows from the Grand Prix's track.json.
+        /// A missing or broken layout only empties the panel; the lap itself stays loaded.
+        /// </summary>
+        private void LoadSectors(ReferenceLapIndex lap)
+        {
+            Sectors.Clear();
+            _activeSector = -1;
+
+            try
+            {
+                TrackLayout? layout = _library?.GetTrackLayout(_selectedYear!, _selectedTrack!);
+                if (layout != null)
+                {
+                    foreach (TrackSector sector in layout.Sectors)
+                    {
+                        float refSeconds = lap.GetTimeAtDistance(sector.EndMeters) - lap.GetTimeAtDistance(sector.StartMeters);
+                        Sectors.Add(new SectorViewModel(sector, layout.CornersIn(sector), refSeconds));
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = $"Lap loaded, but its track.json could not be read: {ex.Message}";
+            }
+
+            OnPropertyChanged(nameof(HasSectors));
+        }
+
+        /// <summary>
+        /// Live sector deltas: time gained/lost in a sector is the change in the overall delta
+        /// between entering and leaving it. Sectors already passed keep their final value.
+        /// </summary>
+        private void UpdateSectorDeltas(in LiveDeltaSnapshot snapshot)
+        {
+            if (Sectors.Count == 0) return;
+
+            int sector = SectorIndexAt(snapshot.Distance);
+
+            // First sample, or the distance jumped back to an earlier sector: a new lap began.
+            // Joining mid-lap leaves the sectors already driven empty rather than guessing them.
+            if (_activeSector < 0 || sector < _activeSector)
+            {
+                ClearSectorDeltas();
+                _activeSector = sector;
+                _sectorStartDelta = sector == 0 ? 0f : snapshot.DeltaTime;
+            }
+
+            // Close every sector boundary crossed since the last frame
+            while (_activeSector < sector)
+            {
+                Sectors[_activeSector].SetDelta(snapshot.DeltaTime - _sectorStartDelta);
+                Sectors[_activeSector].IsActive = false;
+                _sectorStartDelta = snapshot.DeltaTime;
+                _activeSector++;
+            }
+
+            Sectors[sector].IsActive = true;
+            Sectors[sector].SetDelta(snapshot.DeltaTime - _sectorStartDelta);
+        }
+
+        private int SectorIndexAt(float distanceMeters)
+        {
+            for (int i = 0; i < Sectors.Count; i++)
+            {
+                if (Sectors[i].ContainsDistance(distanceMeters)) return i;
+            }
+
+            // Past the last boundary (sim track slightly longer than the reference): still the final sector
+            return distanceMeters <= 0f ? 0 : Sectors.Count - 1;
+        }
+
+        private void ClearSectorDeltas()
+        {
+            foreach (SectorViewModel row in Sectors) row.ClearDelta();
+            _activeSector = -1;
+            _sectorStartDelta = 0f;
         }
 
         #endregion
@@ -514,6 +605,8 @@ namespace OpenATLAS.Workbench.ViewModels
             string sign = ahead ? "+" : "-";
             DeltaDisplayString = $"{sign}{MathF.Abs(snapshot.DeltaTime):F3}s";
             DeltaStatusString = MathF.Abs(snapshot.DeltaTime) < 0.005f ? "LEVEL" : (ahead ? "FASTER" : "SLOWER");
+
+            UpdateSectorDeltas(snapshot);
 
             BufferCount = _circularBuffer.Count;
         }
@@ -712,6 +805,7 @@ namespace OpenATLAS.Workbench.ViewModels
             _accumulatedLapTime = 0f;
             _circularBuffer.Clear();
             _deltaEngine?.Reset();
+            ClearSectorDeltas();
 
             CurrentDistanceMeters = 0f;
             CurrentSimSpeedKmh = 0f;

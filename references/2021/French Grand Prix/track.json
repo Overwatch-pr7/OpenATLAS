@@ -1,0 +1,114 @@
+{
+  "event": "French Grand Prix",
+  "location": "Le Castellet",
+  "lengthMeters": 5772.9,
+  "sectors": [
+    {
+      "number": 1,
+      "startMeters": 0.0,
+      "endMeters": 1379.6
+    },
+    {
+      "number": 2,
+      "startMeters": 1379.6,
+      "endMeters": 3255.6
+    },
+    {
+      "number": 3,
+      "startMeters": 3255.6,
+      "endMeters": 5772.9
+    }
+  ],
+  "corners": [
+    {
+      "number": 1,
+      "letter": "",
+      "distanceMeters": 426.8,
+      "name": ""
+    },
+    {
+      "number": 2,
+      "letter": "",
+      "distanceMeters": 522.2,
+      "name": ""
+    },
+    {
+      "number": 3,
+      "letter": "",
+      "distanceMeters": 1111.1,
+      "name": ""
+    },
+    {
+      "number": 4,
+      "letter": "",
+      "distanceMeters": 1207.5,
+      "name": ""
+    },
+    {
+      "number": 5,
+      "letter": "",
+      "distanceMeters": 1320.6,
+      "name": ""
+    },
+    {
+      "number": 6,
+      "letter": "",
+      "distanceMeters": 1448.0,
+      "name": ""
+    },
+    {
+      "number": 7,
+      "letter": "",
+      "distanceMeters": 1659.8,
+      "name": ""
+    },
+    {
+      "number": 8,
+      "letter": "",
+      "distanceMeters": 2755.3,
+      "name": ""
+    },
+    {
+      "number": 9,
+      "letter": "",
+      "distanceMeters": 2831.6,
+      "name": ""
+    },
+    {
+      "number": 10,
+      "letter": "",
+      "distanceMeters": 3675.4,
+      "name": ""
+    },
+    {
+      "number": 11,
+      "letter": "",
+      "distanceMeters": 4192.1,
+      "name": ""
+    },
+    {
+      "number": 12,
+      "letter": "",
+      "distanceMeters": 4627.0,
+      "name": ""
+    },
+    {
+      "number": 13,
+      "letter": "",
+      "distanceMeters": 4843.7,
+      "name": ""
+    },
+    {
+      "number": 14,
+      "letter": "",
+      "distanceMeters": 5090.4,
+      "name": ""
+    },
+    {
+      "number": 15,
+      "letter": "",
+      "distanceMeters": 5260.8,
+      "name": ""
+    }
+  ]
+}

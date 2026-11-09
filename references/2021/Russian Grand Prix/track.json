@@ -1,0 +1,132 @@
+{
+  "event": "Russian Grand Prix",
+  "location": "Sochi",
+  "lengthMeters": 5797.9,
+  "sectors": [
+    {
+      "number": 1,
+      "startMeters": 0.0,
+      "endMeters": 2407.9
+    },
+    {
+      "number": 2,
+      "startMeters": 2407.9,
+      "endMeters": 4502.2
+    },
+    {
+      "number": 3,
+      "startMeters": 4502.2,
+      "endMeters": 5797.9
+    }
+  ],
+  "corners": [
+    {
+      "number": 1,
+      "letter": "",
+      "distanceMeters": 426.7,
+      "name": ""
+    },
+    {
+      "number": 2,
+      "letter": "",
+      "distanceMeters": 1204.3,
+      "name": ""
+    },
+    {
+      "number": 3,
+      "letter": "",
+      "distanceMeters": 1652.8,
+      "name": ""
+    },
+    {
+      "number": 4,
+      "letter": "",
+      "distanceMeters": 2058.7,
+      "name": ""
+    },
+    {
+      "number": 5,
+      "letter": "",
+      "distanceMeters": 2491.5,
+      "name": ""
+    },
+    {
+      "number": 6,
+      "letter": "",
+      "distanceMeters": 2760.7,
+      "name": ""
+    },
+    {
+      "number": 7,
+      "letter": "",
+      "distanceMeters": 2929.5,
+      "name": ""
+    },
+    {
+      "number": 8,
+      "letter": "",
+      "distanceMeters": 3211.9,
+      "name": ""
+    },
+    {
+      "number": 9,
+      "letter": "",
+      "distanceMeters": 3329.8,
+      "name": ""
+    },
+    {
+      "number": 10,
+      "letter": "",
+      "distanceMeters": 3592.1,
+      "name": ""
+    },
+    {
+      "number": 11,
+      "letter": "",
+      "distanceMeters": 4044.6,
+      "name": ""
+    },
+    {
+      "number": 12,
+      "letter": "",
+      "distanceMeters": 4506.4,
+      "name": ""
+    },
+    {
+      "number": 13,
+      "letter": "",
+      "distanceMeters": 4723.2,
+      "name": ""
+    },
+    {
+      "number": 14,
+      "letter": "",
+      "distanceMeters": 4836.7,
+      "name": ""
+    },
+    {
+      "number": 15,
+      "letter": "",
+      "distanceMeters": 5091.3,
+      "name": ""
+    },
+    {
+      "number": 16,
+      "letter": "",
+      "distanceMeters": 5194.2,
+      "name": ""
+    },
+    {
+      "number": 17,
+      "letter": "",
+      "distanceMeters": 5546.5,
+      "name": ""
+    },
+    {
+      "number": 18,
+      "letter": "",
+      "distanceMeters": 5708.6,
+      "name": ""
+    }
+  ]
+}

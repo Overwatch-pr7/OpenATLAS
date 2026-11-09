@@ -59,6 +59,13 @@ namespace OpenATLAS.Core.Reference
             return Path.Combine(RootPath, year, track, driver + FileExtension);
         }
 
+        // Sector/corner layout for a Grand Prix, or null when the folder has no track.json.
+        public TrackLayout? GetTrackLayout(string year, string track)
+        {
+            string path = Path.Combine(RootPath, year, track, TrackLayout.FileName);
+            return File.Exists(path) ? TrackLayout.Load(path) : null;
+        }
+
         // Walks up from each start directory looking for a 'references' folder.
         // Lets the library be found from bin/Debug/... as well as the repository root.
         public static ReferenceLibrary? Find(params string[] startDirectories)

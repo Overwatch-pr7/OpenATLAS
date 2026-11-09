@@ -1,0 +1,84 @@
+{
+  "event": "Styrian Grand Prix",
+  "location": "Spielberg",
+  "lengthMeters": 4299.3,
+  "sectors": [
+    {
+      "number": 1,
+      "startMeters": 0.0,
+      "endMeters": 1212.4
+    },
+    {
+      "number": 2,
+      "startMeters": 1212.4,
+      "endMeters": 2897.0
+    },
+    {
+      "number": 3,
+      "startMeters": 2897.0,
+      "endMeters": 4299.3
+    }
+  ],
+  "corners": [
+    {
+      "number": 1,
+      "letter": "",
+      "distanceMeters": 446.1,
+      "name": ""
+    },
+    {
+      "number": 2,
+      "letter": "",
+      "distanceMeters": 1072.5,
+      "name": ""
+    },
+    {
+      "number": 3,
+      "letter": "",
+      "distanceMeters": 1379.4,
+      "name": ""
+    },
+    {
+      "number": 4,
+      "letter": "",
+      "distanceMeters": 2188.0,
+      "name": ""
+    },
+    {
+      "number": 5,
+      "letter": "",
+      "distanceMeters": 2375.2,
+      "name": ""
+    },
+    {
+      "number": 6,
+      "letter": "",
+      "distanceMeters": 2698.6,
+      "name": ""
+    },
+    {
+      "number": 7,
+      "letter": "",
+      "distanceMeters": 3027.5,
+      "name": ""
+    },
+    {
+      "number": 8,
+      "letter": "",
+      "distanceMeters": 3223.5,
+      "name": ""
+    },
+    {
+      "number": 9,
+      "letter": "",
+      "distanceMeters": 3763.0,
+      "name": ""
+    },
+    {
+      "number": 10,
+      "letter": "",
+      "distanceMeters": 3961.0,
+      "name": ""
+    }
+  ]
+}

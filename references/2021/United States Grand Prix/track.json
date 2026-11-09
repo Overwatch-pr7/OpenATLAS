@@ -1,0 +1,144 @@
+{
+  "event": "United States Grand Prix",
+  "location": "Austin",
+  "lengthMeters": 5441.2,
+  "sectors": [
+    {
+      "number": 1,
+      "startMeters": 0.0,
+      "endMeters": 1632.3
+    },
+    {
+      "number": 2,
+      "startMeters": 1632.3,
+      "endMeters": 3870.3
+    },
+    {
+      "number": 3,
+      "startMeters": 3870.3,
+      "endMeters": 5441.2
+    }
+  ],
+  "corners": [
+    {
+      "number": 1,
+      "letter": "",
+      "distanceMeters": 641.3,
+      "name": ""
+    },
+    {
+      "number": 2,
+      "letter": "",
+      "distanceMeters": 881.7,
+      "name": ""
+    },
+    {
+      "number": 3,
+      "letter": "",
+      "distanceMeters": 1152.1,
+      "name": ""
+    },
+    {
+      "number": 4,
+      "letter": "",
+      "distanceMeters": 1235.4,
+      "name": ""
+    },
+    {
+      "number": 5,
+      "letter": "",
+      "distanceMeters": 1334.4,
+      "name": ""
+    },
+    {
+      "number": 6,
+      "letter": "",
+      "distanceMeters": 1472.5,
+      "name": ""
+    },
+    {
+      "number": 7,
+      "letter": "",
+      "distanceMeters": 1694.3,
+      "name": ""
+    },
+    {
+      "number": 8,
+      "letter": "",
+      "distanceMeters": 1848.6,
+      "name": ""
+    },
+    {
+      "number": 9,
+      "letter": "",
+      "distanceMeters": 1942.1,
+      "name": ""
+    },
+    {
+      "number": 10,
+      "letter": "",
+      "distanceMeters": 2155.2,
+      "name": ""
+    },
+    {
+      "number": 11,
+      "letter": "",
+      "distanceMeters": 2522.4,
+      "name": ""
+    },
+    {
+      "number": 12,
+      "letter": "",
+      "distanceMeters": 3717.6,
+      "name": ""
+    },
+    {
+      "number": 13,
+      "letter": "",
+      "distanceMeters": 3952.9,
+      "name": ""
+    },
+    {
+      "number": 14,
+      "letter": "",
+      "distanceMeters": 4029.8,
+      "name": ""
+    },
+    {
+      "number": 15,
+      "letter": "",
+      "distanceMeters": 4231.2,
+      "name": ""
+    },
+    {
+      "number": 16,
+      "letter": "",
+      "distanceMeters": 4420.5,
+      "name": ""
+    },
+    {
+      "number": 17,
+      "letter": "",
+      "distanceMeters": 4564.8,
+      "name": ""
+    },
+    {
+      "number": 18,
+      "letter": "",
+      "distanceMeters": 4706.1,
+      "name": ""
+    },
+    {
+      "number": 19,
+      "letter": "",
+      "distanceMeters": 4975.9,
+      "name": ""
+    },
+    {
+      "number": 20,
+      "letter": "",
+      "distanceMeters": 5282.6,
+      "name": ""
+    }
+  ]
+}

@@ -598,64 +598,83 @@
                         <StackPanel>
                             <TextBlock Text="TRACK SECTOR ANALYSIS" Style="{StaticResource TelemetryLabelText}" Margin="0,0,0,8" />
 
-                            <!-- Sector 1 -->
-                            <Border Background="{StaticResource CanvasBackgroundBrush}"
-                                    BorderBrush="{StaticResource BorderBrush}"
-                                    BorderThickness="1"
-                                    CornerRadius="0"
-                                    Padding="8,6"
-                                    Margin="0,0,0,6">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
-                                    <StackPanel Grid.Column="0">
-                                        <TextBlock Text="SECTOR 1: PRIMA VARIANTE" Style="{StaticResource TelemetryLabelText}" />
-                                        <TextBlock Text="Turn 1 &amp; 2 Chicane (0m - 1650m)" FontSize="10" Foreground="{StaticResource ForegroundMutedBrush}" />
-                                    </StackPanel>
-                                    <TextBlock Grid.Column="1" Text="DELTA: ±0.00s" Style="{StaticResource TelemetryValueText}" FontSize="11" VerticalAlignment="Center" />
-                                </Grid>
-                            </Border>
+                            <!-- One card per sector of the selected Grand Prix (from its track.json).
+                                 Active sector gets a highlighted border; the delta turns green/red once timed. -->
+                            <ItemsControl ItemsSource="{Binding Sectors}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border x:Name="SectorCard"
+                                                Background="{StaticResource CanvasBackgroundBrush}"
+                                                BorderBrush="{StaticResource BorderBrush}"
+                                                BorderThickness="1"
+                                                CornerRadius="0"
+                                                Padding="8,6"
+                                                Margin="0,0,0,6">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel Grid.Column="0">
+                                                    <TextBlock Text="{Binding Title}"
+                                                               Style="{StaticResource TelemetryLabelText}"
+                                                               TextTrimming="CharacterEllipsis"
+                                                               ToolTip="{Binding Title}" />
+                                                    <TextBlock Text="{Binding Detail}" FontSize="10" Foreground="{StaticResource ForegroundMutedBrush}" />
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="8,0,0,0">
+                                                    <TextBlock x:Name="SectorDelta"
+                                                               Text="{Binding DeltaString}"
+                                                               Style="{StaticResource TelemetryValueText}"
+                                                               Foreground="{StaticResource ForegroundMutedBrush}"
+                                                               FontSize="11"
+                                                               HorizontalAlignment="Right" />
+                                                    <TextBlock Text="{Binding ReferenceTimeString}"
+                                                               FontFamily="{StaticResource TelemetryNumberFontFamily}"
+                                                               FontSize="10"
+                                                               Foreground="{StaticResource ReferenceTraceBrush}"
+                                                               HorizontalAlignment="Right" />
+                                                </StackPanel>
+                                            </Grid>
+                                        </Border>
+                                        <DataTemplate.Triggers>
+                                            <DataTrigger Binding="{Binding IsActive}" Value="True">
+                                                <Setter TargetName="SectorCard" Property="BorderBrush" Value="{StaticResource LiveTraceBrush}" />
+                                            </DataTrigger>
+                                            <MultiDataTrigger>
+                                                <MultiDataTrigger.Conditions>
+                                                    <Condition Binding="{Binding HasDelta}" Value="True" />
+                                                    <Condition Binding="{Binding IsAhead}" Value="True" />
+                                                </MultiDataTrigger.Conditions>
+                                                <Setter TargetName="SectorDelta" Property="Foreground" Value="{StaticResource DeltaAheadBrush}" />
+                                            </MultiDataTrigger>
+                                            <MultiDataTrigger>
+                                                <MultiDataTrigger.Conditions>
+                                                    <Condition Binding="{Binding HasDelta}" Value="True" />
+                                                    <Condition Binding="{Binding IsAhead}" Value="False" />
+                                                </MultiDataTrigger.Conditions>
+                                                <Setter TargetName="SectorDelta" Property="Foreground" Value="{StaticResource DeltaBehindBrush}" />
+                                            </MultiDataTrigger>
+                                        </DataTemplate.Triggers>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
 
-                            <!-- Sector 2 -->
-                            <Border Background="{StaticResource CanvasBackgroundBrush}"
-                                    BorderBrush="{StaticResource BorderBrush}"
-                                    BorderThickness="1"
-                                    CornerRadius="0"
-                                    Padding="8,6"
-                                    Margin="0,0,0,6">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
-                                    <StackPanel Grid.Column="0">
-                                        <TextBlock Text="SECTOR 2: LESMO &amp; SERRAGLIO" Style="{StaticResource TelemetryLabelText}" />
-                                        <TextBlock Text="Turn 4 to Turn 7 (1650m - 3450m)" FontSize="10" Foreground="{StaticResource ForegroundMutedBrush}" />
-                                    </StackPanel>
-                                    <TextBlock Grid.Column="1" Text="DELTA: ±0.00s" Style="{StaticResource TelemetryValueText}" FontSize="11" VerticalAlignment="Center" />
-                                </Grid>
-                            </Border>
-
-                            <!-- Sector 3 -->
-                            <Border Background="{StaticResource CanvasBackgroundBrush}"
-                                    BorderBrush="{StaticResource BorderBrush}"
-                                    BorderThickness="1"
-                                    CornerRadius="0"
-                                    Padding="8,6">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
-                                    <StackPanel Grid.Column="0">
-                                        <TextBlock Text="SECTOR 3: ASCARI &amp; PARABOLICA" Style="{StaticResource TelemetryLabelText}" />
-                                        <TextBlock Text="Turn 8 to Turn 11 (3450m - 5793m)" FontSize="10" Foreground="{StaticResource ForegroundMutedBrush}" />
-                                    </StackPanel>
-                                    <TextBlock Grid.Column="1" Text="DELTA: ±0.00s" Style="{StaticResource TelemetryValueText}" FontSize="11" VerticalAlignment="Center" />
-                                </Grid>
-                            </Border>
+                            <TextBlock Text="No sector data for this Grand Prix. Re-run extract_reference.py to generate its track.json."
+                                       FontSize="10"
+                                       TextWrapping="Wrap"
+                                       Foreground="{StaticResource ForegroundMutedBrush}">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding HasSectors}" Value="False">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
                         </StackPanel>
                     </Border>
                 </Grid>

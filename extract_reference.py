@@ -24,6 +24,8 @@ Historical sessions are public: no F1 account or login is needed.
 --- Reference Library (used by the Workbench dropdowns) ---
 Laps are saved as: references/<Year>/<Grand Prix>/<DRIVER>.parquet
 (e.g. references/2021/Italian Grand Prix/HAM.parquet). One file per driver: their fastest lap.
+Each Grand Prix folder also gets a track.json with the sector boundaries and corner numbers
+used by the Workbench sector analysis. Corner names can be typed into its "name" fields by hand.
 The event name is used rather than the circuit because some circuits host two events
 in a season (2021: Styrian and Austrian Grand Prix, both at Spielberg).
 
@@ -38,6 +40,7 @@ Laps that already exist are skipped, so an interrupted season download can simpl
 """
 
 import os
+import json
 import time
 import argparse
 import fastf1
@@ -49,6 +52,7 @@ from scipy.interpolate import interp1d
 
 CACHE_DIR = 'cache'
 REFERENCE_DIR = 'references'
+TRACK_INFO_FILE = 'track.json'
 
 # Pause between sessions so the timing API is never hammered during a season download
 SESSION_DELAY_S = 3
@@ -203,6 +207,69 @@ def ReferencePath(Year: int, GrandPrix: str, Driver: str) -> str:
     """Location of a reference lap inside the library: references/<Year>/<Grand Prix>/<DRIVER>.parquet"""
     return os.path.join(REFERENCE_DIR, str(Year), GrandPrix, f"{Driver.upper()}.parquet")
 
+def TrackInfoPath(Year: int, GrandPrix: str) -> str:
+    """Track layout (sectors + corners) shared by every lap of a Grand Prix: references/<Year>/<Grand Prix>/track.json"""
+    return os.path.join(REFERENCE_DIR, str(Year), GrandPrix, TRACK_INFO_FILE)
+
+def ExportTrackInfo(session, Year: int, eventName: str):
+    """
+    Writes track.json for the Workbench sector analysis:
+      - sectors: start/end distance (m) of the three official timing sectors
+      - corners: turn numbers and their distance (m) along the lap; 'name' is left empty
+                 for hand-written corner names (e.g. "Prima Variante")
+
+    FastF1 only gives sector *times*, so the boundaries are found by looking up those
+    times on the fastest lap's own distance trace.
+    """
+    path = TrackInfoPath(Year, eventName)
+    if os.path.exists(path):
+        return
+
+    # Fastest lap that has all three sector times (some laps miss one, e.g. after a red flag)
+    timedLaps = session.laps.dropna(subset=['LapTime', 'Sector1Time', 'Sector2Time', 'Sector3Time'])
+    if timedLaps.empty:
+        print("    no lap with all sector times, track.json not written")
+        return
+    lap = timedLaps.sort_values('LapTime').iloc[0]
+
+    telemetry = DownloadSessionData(session, lap['Driver'])
+    if telemetry is None:
+        return
+    lapTime = telemetry['Time'].dt.total_seconds().values
+    distance = telemetry['Distance'].values
+
+    sector1End = lap['Sector1Time'].total_seconds()
+    sector2End = sector1End + lap['Sector2Time'].total_seconds()
+    boundaries = [0.0,
+                  float(np.interp(sector1End, lapTime, distance)),
+                  float(np.interp(sector2End, lapTime, distance)),
+                  float(distance[-1])]
+
+    try:
+        corners = session.get_circuit_info().corners
+        cornerList = [{'number': int(c['Number']), 'letter': str(c['Letter'] or ''),
+                       'distanceMeters': round(float(c['Distance']), 1), 'name': ''}
+                      for _, c in corners.sort_values('Distance').iterrows()]
+    except Exception as e:
+        # Sectors are still useful without corner numbers
+        print(f"    circuit info unavailable ({e}), writing sectors only")
+        cornerList = []
+
+    trackInfo = {
+        'event': eventName,
+        'location': session.event['Location'],
+        'lengthMeters': round(boundaries[-1], 1),
+        'sectors': [{'number': i + 1,
+                     'startMeters': round(boundaries[i], 1),
+                     'endMeters': round(boundaries[i + 1], 1)} for i in range(3)],
+        'corners': cornerList,
+    }
+
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, 'w', encoding='utf-8') as f:
+        json.dump(trackInfo, f, indent=2, ensure_ascii=False)
+    print(f"    track.json written ({len(cornerList)} corners)")
+
 def ExportSession(Year: int, GrandPrix, SessionType: str, Driver: str = None) -> int:
     """Downloads one session and exports the fastest lap of every requested driver. Returns laps written."""
     session = LoadSession(Year, GrandPrix, SessionType)
@@ -216,6 +283,8 @@ def ExportSession(Year: int, GrandPrix, SessionType: str, Driver: str = None) ->
     if laps.empty:
         print(f"    no lap data available for {eventName} ({SessionType}), skipping")
         return 0
+
+    ExportTrackInfo(session, Year, eventName)
 
     drivers = [Driver.upper()] if Driver else sorted(laps['Driver'].dropna().unique())
     exported = 0

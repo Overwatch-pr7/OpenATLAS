@@ -1,0 +1,120 @@
+{
+  "event": "Hungarian Grand Prix",
+  "location": "Budapest",
+  "lengthMeters": 4338.7,
+  "sectors": [
+    {
+      "number": 1,
+      "startMeters": 0.0,
+      "endMeters": 1721.9
+    },
+    {
+      "number": 2,
+      "startMeters": 1721.9,
+      "endMeters": 3251.0
+    },
+    {
+      "number": 3,
+      "startMeters": 3251.0,
+      "endMeters": 4338.7
+    }
+  ],
+  "corners": [
+    {
+      "number": 1,
+      "letter": "",
+      "distanceMeters": 640.7,
+      "name": ""
+    },
+    {
+      "number": 1,
+      "letter": "A",
+      "distanceMeters": 819.0,
+      "name": ""
+    },
+    {
+      "number": 2,
+      "letter": "",
+      "distanceMeters": 1134.0,
+      "name": ""
+    },
+    {
+      "number": 3,
+      "letter": "",
+      "distanceMeters": 1324.6,
+      "name": ""
+    },
+    {
+      "number": 4,
+      "letter": "",
+      "distanceMeters": 1798.9,
+      "name": ""
+    },
+    {
+      "number": 5,
+      "letter": "",
+      "distanceMeters": 2036.7,
+      "name": ""
+    },
+    {
+      "number": 6,
+      "letter": "",
+      "distanceMeters": 2370.5,
+      "name": ""
+    },
+    {
+      "number": 7,
+      "letter": "",
+      "distanceMeters": 2412.4,
+      "name": ""
+    },
+    {
+      "number": 8,
+      "letter": "",
+      "distanceMeters": 2583.4,
+      "name": ""
+    },
+    {
+      "number": 9,
+      "letter": "",
+      "distanceMeters": 2724.5,
+      "name": ""
+    },
+    {
+      "number": 10,
+      "letter": "",
+      "distanceMeters": 2914.8,
+      "name": ""
+    },
+    {
+      "number": 11,
+      "letter": "",
+      "distanceMeters": 3112.7,
+      "name": ""
+    },
+    {
+      "number": 12,
+      "letter": "",
+      "distanceMeters": 3509.0,
+      "name": ""
+    },
+    {
+      "number": 12,
+      "letter": "A",
+      "distanceMeters": 3634.3,
+      "name": ""
+    },
+    {
+      "number": 13,
+      "letter": "",
+      "distanceMeters": 3772.3,
+      "name": ""
+    },
+    {
+      "number": 14,
+      "letter": "",
+      "distanceMeters": 4063.0,
+      "name": ""
+    }
+  ]
+}

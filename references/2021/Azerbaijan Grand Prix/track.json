@@ -1,0 +1,144 @@
+{
+  "event": "Azerbaijan Grand Prix",
+  "location": "Baku",
+  "lengthMeters": 5960.3,
+  "sectors": [
+    {
+      "number": 1,
+      "startMeters": 0.0,
+      "endMeters": 2018.2
+    },
+    {
+      "number": 2,
+      "startMeters": 2018.2,
+      "endMeters": 4016.3
+    },
+    {
+      "number": 3,
+      "startMeters": 4016.3,
+      "endMeters": 5960.3
+    }
+  ],
+  "corners": [
+    {
+      "number": 1,
+      "letter": "",
+      "distanceMeters": 303.8,
+      "name": ""
+    },
+    {
+      "number": 2,
+      "letter": "",
+      "distanceMeters": 644.7,
+      "name": ""
+    },
+    {
+      "number": 3,
+      "letter": "",
+      "distanceMeters": 1512.3,
+      "name": ""
+    },
+    {
+      "number": 4,
+      "letter": "",
+      "distanceMeters": 1739.8,
+      "name": ""
+    },
+    {
+      "number": 5,
+      "letter": "",
+      "distanceMeters": 2077.2,
+      "name": ""
+    },
+    {
+      "number": 6,
+      "letter": "",
+      "distanceMeters": 2133.7,
+      "name": ""
+    },
+    {
+      "number": 7,
+      "letter": "",
+      "distanceMeters": 2520.5,
+      "name": ""
+    },
+    {
+      "number": 8,
+      "letter": "",
+      "distanceMeters": 2714.7,
+      "name": ""
+    },
+    {
+      "number": 9,
+      "letter": "",
+      "distanceMeters": 2736.2,
+      "name": ""
+    },
+    {
+      "number": 10,
+      "letter": "",
+      "distanceMeters": 2770.1,
+      "name": ""
+    },
+    {
+      "number": 11,
+      "letter": "",
+      "distanceMeters": 2817.2,
+      "name": ""
+    },
+    {
+      "number": 12,
+      "letter": "",
+      "distanceMeters": 2872.6,
+      "name": ""
+    },
+    {
+      "number": 13,
+      "letter": "",
+      "distanceMeters": 3279.0,
+      "name": ""
+    },
+    {
+      "number": 14,
+      "letter": "",
+      "distanceMeters": 3509.5,
+      "name": ""
+    },
+    {
+      "number": 15,
+      "letter": "",
+      "distanceMeters": 3716.3,
+      "name": ""
+    },
+    {
+      "number": 16,
+      "letter": "",
+      "distanceMeters": 4084.6,
+      "name": ""
+    },
+    {
+      "number": 17,
+      "letter": "",
+      "distanceMeters": 4269.1,
+      "name": ""
+    },
+    {
+      "number": 18,
+      "letter": "",
+      "distanceMeters": 4518.0,
+      "name": ""
+    },
+    {
+      "number": 19,
+      "letter": "",
+      "distanceMeters": 4660.2,
+      "name": ""
+    },
+    {
+      "number": 20,
+      "letter": "",
+      "distanceMeters": 4971.4,
+      "name": ""
+    }
+  ]
+}

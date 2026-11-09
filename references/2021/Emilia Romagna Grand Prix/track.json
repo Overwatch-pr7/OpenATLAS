@@ -1,0 +1,138 @@
+{
+  "event": "Emilia Romagna Grand Prix",
+  "location": "Imola",
+  "lengthMeters": 4915.6,
+  "sectors": [
+    {
+      "number": 1,
+      "startMeters": 0.0,
+      "endMeters": 1783.3
+    },
+    {
+      "number": 2,
+      "startMeters": 1783.3,
+      "endMeters": 3389.8
+    },
+    {
+      "number": 3,
+      "startMeters": 3389.8,
+      "endMeters": 4915.6
+    }
+  ],
+  "corners": [
+    {
+      "number": 1,
+      "letter": "",
+      "distanceMeters": 254.4,
+      "name": ""
+    },
+    {
+      "number": 2,
+      "letter": "",
+      "distanceMeters": 895.8,
+      "name": ""
+    },
+    {
+      "number": 3,
+      "letter": "",
+      "distanceMeters": 955.1,
+      "name": ""
+    },
+    {
+      "number": 4,
+      "letter": "",
+      "distanceMeters": 1105.1,
+      "name": ""
+    },
+    {
+      "number": 5,
+      "letter": "",
+      "distanceMeters": 1540.0,
+      "name": ""
+    },
+    {
+      "number": 6,
+      "letter": "",
+      "distanceMeters": 1637.3,
+      "name": ""
+    },
+    {
+      "number": 7,
+      "letter": "",
+      "distanceMeters": 1914.7,
+      "name": ""
+    },
+    {
+      "number": 8,
+      "letter": "",
+      "distanceMeters": 2314.1,
+      "name": ""
+    },
+    {
+      "number": 9,
+      "letter": "",
+      "distanceMeters": 2571.9,
+      "name": ""
+    },
+    {
+      "number": 10,
+      "letter": "",
+      "distanceMeters": 2702.6,
+      "name": ""
+    },
+    {
+      "number": 11,
+      "letter": "",
+      "distanceMeters": 2968.8,
+      "name": ""
+    },
+    {
+      "number": 12,
+      "letter": "",
+      "distanceMeters": 3060.4,
+      "name": ""
+    },
+    {
+      "number": 13,
+      "letter": "",
+      "distanceMeters": 3137.2,
+      "name": ""
+    },
+    {
+      "number": 14,
+      "letter": "",
+      "distanceMeters": 3564.5,
+      "name": ""
+    },
+    {
+      "number": 15,
+      "letter": "",
+      "distanceMeters": 3610.7,
+      "name": ""
+    },
+    {
+      "number": 16,
+      "letter": "",
+      "distanceMeters": 4155.0,
+      "name": ""
+    },
+    {
+      "number": 17,
+      "letter": "",
+      "distanceMeters": 4367.6,
+      "name": ""
+    },
+    {
+      "number": 18,
+      "letter": "",
+      "distanceMeters": 4507.0,
+      "name": ""
+    },
+    {
+      "number": 19,
+      "letter": "",
+      "distanceMeters": 4817.4,
+      "name": ""
+    }
+  ]
+}

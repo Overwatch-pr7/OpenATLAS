@@ -235,6 +235,7 @@ references/
 |   |   |-- ALO.parquet
 |   |   |-- HAM.parquet
 |   |   |-- ...
+|   |   |-- track.json        Sector boundaries and corner positions
 |   |-- Austrian Grand Prix/
 |   |-- ...
 |   |-- United States Grand Prix/
@@ -244,7 +245,29 @@ A few drivers are missing at some events because they set no qualifying time (cr
 
 Live comparisons only make sense on tracks that exist both in the reference data and in Assetto Corsa (official tracks such as Monza, Spa, Silverstone, Barcelona, Red Bull Ring and Imola, plus many more as community mods).
 
-To add more, run `extract_reference.py` with the desired year, Grand Prix, and session.
+### How it works
+
+- The Workbench reads only the `references/` folder. It needs no internet connection, no Python and no FastF1 at runtime; a fresh clone works as-is.
+- Each `.parquet` file is one driver's fastest lap, resampled to one sample per metre (speed, throttle, brake, RPM, gear, elapsed time), so it lines up directly with the live car's distance.
+- Each Grand Prix folder has a `track.json` with the three timing-sector boundaries and corner positions, used by the sector analysis panel. Corner names can be added by hand in its `name` fields.
+- The dropdowns are built from the folder structure, so any lap added to `references/` appears after restarting the app.
+- `cache/` is FastF1's download cache. It is not part of the repository; `extract_reference.py` creates and fills it on first use.
+
+### Getting any driver's lap
+
+1. Install the dependencies: `pip install fastf1 numpy scipy pandas pyarrow`
+2. From the repository root, run the extractor with the year, Grand Prix and driver code:
+   ```bash
+   python extract_reference.py --year 2022 --track Silverstone --driver NOR
+   ```
+   Omit `--driver` for the whole grid, omit `--track` for the whole season, and add `--session R` for race laps (fastest lap of the race).
+3. Restart the Workbench and select the lap from the dropdowns.
+
+The first download of a session takes a minute or two; repeat runs are served from `cache/`.
+
+**Data availability:** without an F1 account, FastF1 serves timing data from a public mirror. As of November 2026 (tested with FastF1 3.8.3), the 2021 and 2022 seasons download without signing in; other seasons return no lap data and the extractor reports `no lap data available`. Those seasons may require signing in with an F1TV account (supported from FastF1 3.9).
+
+Note that the library has no separate session level: race laps are saved to the same Grand Prix folder as qualifying laps, so a driver's file is skipped if one already exists there.
 
 ---
 

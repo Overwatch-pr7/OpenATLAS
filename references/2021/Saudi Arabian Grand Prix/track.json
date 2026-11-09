@@ -1,0 +1,186 @@
+{
+  "event": "Saudi Arabian Grand Prix",
+  "location": "Jeddah",
+  "lengthMeters": 6112.5,
+  "sectors": [
+    {
+      "number": 1,
+      "startMeters": 0.0,
+      "endMeters": 2071.7
+    },
+    {
+      "number": 2,
+      "startMeters": 2071.7,
+      "endMeters": 4113.9
+    },
+    {
+      "number": 3,
+      "startMeters": 4113.9,
+      "endMeters": 6112.5
+    }
+  ],
+  "corners": [
+    {
+      "number": 1,
+      "letter": "",
+      "distanceMeters": 490.9,
+      "name": ""
+    },
+    {
+      "number": 2,
+      "letter": "",
+      "distanceMeters": 544.2,
+      "name": ""
+    },
+    {
+      "number": 3,
+      "letter": "",
+      "distanceMeters": 681.9,
+      "name": ""
+    },
+    {
+      "number": 4,
+      "letter": "",
+      "distanceMeters": 990.0,
+      "name": ""
+    },
+    {
+      "number": 5,
+      "letter": "",
+      "distanceMeters": 1104.4,
+      "name": ""
+    },
+    {
+      "number": 6,
+      "letter": "",
+      "distanceMeters": 1246.4,
+      "name": ""
+    },
+    {
+      "number": 7,
+      "letter": "",
+      "distanceMeters": 1357.1,
+      "name": ""
+    },
+    {
+      "number": 8,
+      "letter": "",
+      "distanceMeters": 1437.1,
+      "name": ""
+    },
+    {
+      "number": 9,
+      "letter": "",
+      "distanceMeters": 1589.0,
+      "name": ""
+    },
+    {
+      "number": 10,
+      "letter": "",
+      "distanceMeters": 1689.0,
+      "name": ""
+    },
+    {
+      "number": 11,
+      "letter": "",
+      "distanceMeters": 1795.3,
+      "name": ""
+    },
+    {
+      "number": 12,
+      "letter": "",
+      "distanceMeters": 1895.3,
+      "name": ""
+    },
+    {
+      "number": 13,
+      "letter": "",
+      "distanceMeters": 2415.8,
+      "name": ""
+    },
+    {
+      "number": 14,
+      "letter": "",
+      "distanceMeters": 2736.0,
+      "name": ""
+    },
+    {
+      "number": 15,
+      "letter": "",
+      "distanceMeters": 2941.8,
+      "name": ""
+    },
+    {
+      "number": 16,
+      "letter": "",
+      "distanceMeters": 3072.1,
+      "name": ""
+    },
+    {
+      "number": 17,
+      "letter": "",
+      "distanceMeters": 3173.2,
+      "name": ""
+    },
+    {
+      "number": 18,
+      "letter": "",
+      "distanceMeters": 3390.3,
+      "name": ""
+    },
+    {
+      "number": 19,
+      "letter": "",
+      "distanceMeters": 3603.9,
+      "name": ""
+    },
+    {
+      "number": 20,
+      "letter": "",
+      "distanceMeters": 3811.3,
+      "name": ""
+    },
+    {
+      "number": 21,
+      "letter": "",
+      "distanceMeters": 4004.9,
+      "name": ""
+    },
+    {
+      "number": 22,
+      "letter": "",
+      "distanceMeters": 4244.5,
+      "name": ""
+    },
+    {
+      "number": 23,
+      "letter": "",
+      "distanceMeters": 4343.1,
+      "name": ""
+    },
+    {
+      "number": 24,
+      "letter": "",
+      "distanceMeters": 4483.2,
+      "name": ""
+    },
+    {
+      "number": 25,
+      "letter": "",
+      "distanceMeters": 4765.7,
+      "name": ""
+    },
+    {
+      "number": 26,
+      "letter": "",
+      "distanceMeters": 5132.2,
+      "name": ""
+    },
+    {
+      "number": 27,
+      "letter": "",
+      "distanceMeters": 5524.6,
+      "name": ""
+    }
+  ]
+}
