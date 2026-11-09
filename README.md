@@ -130,14 +130,19 @@ dotnet test
 
 ## Usage
 
-### Reference Lap Selection
+### Choosing the Two Racers
 
-Use the dropdown bar at the top of the Workbench window to select a **Year**, **Grand Prix**, and **Driver**. The trace panes update immediately.
+Every comparison has two laps, chosen in the bar under the header:
+
+- **Racer 1** (cyan, the lap being analysed): **SOURCE** is `LIVE AC`, `SIMULATION`, or `SAVED LAP` (one of your own laps for the selected Grand Prix).
+- **Racer 2** (yellow, the reference): **Year**, **Grand Prix** and **Driver**. Choose a season for a real F1 lap, or `My Laps` to compare against one of your own.
+
+**START** (F5) runs Racer 1, **PAUSE** (F6) pauses a simulation or saved-lap replay, **STOP** (Shift+F5) ends it, and **RESET LAP** (Ctrl+R) clears the live traces, deltas and cursor pins. The same actions are in the **Session** menu.
 
 ### Live Mode (Assetto Corsa)
 
 1. Select the reference lap for the track you are going to drive.
-2. Click **CONNECT AC**. You can do this before or after starting the game: the app waits and connects on its own as soon as AC's shared memory appears.
+2. Set **Racer 1 SOURCE** to `LIVE AC` and click **START**. You can do this before or after starting the game: the app waits and connects on its own as soon as AC's shared memory appears.
 3. Drive. Live traces are drawn in cyan over the yellow reference.
 
 Current limitations (being worked on next):
@@ -163,7 +168,18 @@ dotnet run --project ConsoleApp -- --ac-monitor
 ### Simulation Replay Mode
 I built this just to test because I didn't feel like driving laps around Monza every time I wanted to test my code. This will be mostly be replaced in the end with say, a utility where you can simulate your own sim lap data but let's see.
 
-For now, if the simulator is not running, click **SIMULATE LAP** to run a built-in dry-run. It creates a synthetic driver from the selected reference lap itself: 1.5% slower than the reference for the first 2000 m and 1% faster after that, with the reference's own pedal inputs and gears. This exercises the delta engine, trace rendering, and UI responsiveness with predictable results (about 0.5 s lost by 2000 m, recovered by the end of the lap). The replay currently plays back at roughly 60% of real time; the delta values are unaffected.
+For now, if the simulator is not running, set **Racer 1 SOURCE** to `SIMULATION` and click **START** to run a built-in dry-run. It creates a synthetic driver from the selected reference lap itself: 1.5% slower than the reference for the first 2000 m and 1% faster after that, with the reference's own pedal inputs and gears. This exercises the delta engine, trace rendering, and UI responsiveness with predictable results (about 0.5 s lost by 2000 m, recovered by the end of the lap). The replay currently plays back at roughly 60% of real time; the delta values are unaffected.
+
+### Your Own Laps
+
+Your laps are stored in `references/My Laps/<Grand Prix>/` (git-ignored) in the same format as the F1 laps, so they can be Racer 1 (`SAVED LAP`) or Racer 2 (`My Laps`). There are two ways to add them:
+
+- **Record while driving:** click **REC** (or Session > Record Live AC Laps). Every complete lap driven in Assetto Corsa is saved under the selected Grand Prix. Laps follow AC's own lap counter and clock; out-laps, partial laps and laps you join midway are skipped.
+- **Import a log:** **File > Import Lap from CSV** (Ctrl+O). Pick the file, check the detected columns, choose the lap (the fastest complete lap is preselected), the Grand Prix and a name.
+
+Base Assetto Corsa does not record telemetry itself; common tools that do are [Telemetrick](https://overtake.gg/downloads/telemetrick.73265) (CSV or MoTeC export), Sim Racing Telemetry (Export to CSV) and MoTeC i2 (File > Export > CSV). The importer needs a header row with a **speed** column and a **time** and/or **distance** column; throttle, brake, gear, RPM and lap number are optional. Units are read from the header (`Speed [km/h]`, `(m/s)`, `mph`) or a MoTeC units row, and 0-1 pedal values are scaled to 0-100 %. See **Help > Import File Format** for the full description.
+
+Imported and recorded laps are normalised like the reference laps: time and distance start at zero on the line and the lap is resampled to one sample per metre. When replayed against a reference, a lap is matched by fraction of the lap, so a sim track of slightly different length still lines up corner for corner.
 
 ---
 
@@ -235,7 +251,7 @@ references/
 |   |   |-- ALO.parquet
 |   |   |-- HAM.parquet
 |   |   |-- ...
-|   |   |-- track.json        Sector boundaries and corner positions
+|   |   |-- track.json        Sector boundaries, corners and track map outline
 |   |-- Austrian Grand Prix/
 |   |-- ...
 |   |-- United States Grand Prix/
@@ -249,7 +265,7 @@ Live comparisons only make sense on tracks that exist both in the reference data
 
 - The Workbench reads only the `references/` folder. It needs no internet connection, no Python and no FastF1 at runtime; a fresh clone works as-is.
 - Each `.parquet` file is one driver's fastest lap, resampled to one sample per metre (speed, throttle, brake, RPM, gear, elapsed time), so it lines up directly with the live car's distance.
-- Each Grand Prix folder has a `track.json` with the three timing-sector boundaries and corner positions, used by the sector analysis panel. Corner names can be added by hand in its `name` fields.
+- Each Grand Prix folder has a `track.json` with the three timing-sector boundaries, corner positions and a track map outline (X/Y every 10 m, from FastF1 position data), used by the sector analysis panel and the track map. Corner names can be added by hand in its `name` fields.
 - The dropdowns are built from the folder structure, so any lap added to `references/` appears after restarting the app.
 - `cache/` is FastF1's download cache. It is not part of the repository; `extract_reference.py` creates and fills it on first use.
 

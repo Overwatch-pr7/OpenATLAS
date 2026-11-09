@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Windows;
 using System.Windows.Input;
 using OpenATLAS.Workbench.Plotting;
@@ -20,6 +22,10 @@ namespace OpenATLAS.Workbench
         private TracePanes _tracePanes = null!;
         private LiveRenderLoop _renderLoop = null!;
         private DistanceCursor _cursor = null!;
+        private TrackMap _trackMap = null!;
+
+        // Reused every frame for the pins' lap fractions on the track map
+        private readonly List<double> _pinFractions = [];
 
         // Where the left button went down; a release within this many pixels is a click, not a pan
         private Point _mouseDownPosition;
@@ -74,6 +80,10 @@ namespace OpenATLAS.Workbench
             DeltaPlot.Plot.Axes.Link(PedalPlot, x: true, y: false);
 
             _cursor = new DistanceCursor(_tracePanes, _viewModel);
+
+            _trackMap = new TrackMap(TrackMapPlot.Plot);
+            _trackMap.Load(_viewModel.TrackLayout);
+            _viewModel.PropertyChanged += OnViewModelPropertyChanged;
             foreach (WpfPlot plot in new[] { SpeedPlot, PedalPlot, DeltaPlot })
             {
                 // Preview events so ScottPlot's own pan/zoom handling still runs
@@ -103,6 +113,19 @@ namespace OpenATLAS.Workbench
             RefreshPlots();
         }
 
+        private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == nameof(WorkbenchViewModel.TrackLayout))
+            {
+                _trackMap.Load(_viewModel.TrackLayout); // a different Grand Prix was selected
+                RefreshPlots();
+            }
+            else if (e.PropertyName == nameof(WorkbenchViewModel.IsTrackMapVisible))
+            {
+                RefreshPlots(); // the map was not redrawn while hidden
+            }
+        }
+
         private void OnLapReset()
         {
             _cursor.Clear(); // pins belong to the lap that was just reset
@@ -116,7 +139,72 @@ namespace OpenATLAS.Workbench
             SpeedPlot.Refresh();
             PedalPlot.Refresh();
             DeltaPlot.Refresh();
+            RefreshTrackMap();
         }
+
+        /// <summary>
+        /// Moves the car, cursor and pin markers on the track map. Positions are lap fractions
+        /// (distance / reference lap length), the same scale the map's outline is drawn on.
+        /// </summary>
+        private void RefreshTrackMap()
+        {
+            if (_trackMap == null || !_trackMap.HasMap || !_viewModel.IsTrackMapVisible) return;
+
+            double length = _viewModel.ReferenceLap?.TrackLengthMeters ?? 0;
+            if (length <= 0) return;
+
+            _trackMap.SetCar(_tracePanes.LatestLiveDistance / length);
+            _trackMap.SetHover(_cursor.HoverDistance / length);
+
+            _pinFractions.Clear();
+            foreach (double pin in _cursor.Pins) _pinFractions.Add(pin / length);
+            _trackMap.SetPins(_pinFractions);
+
+            TrackMapPlot.Refresh();
+        }
+
+        #region Menu Bar
+
+        // File > Import Lap from CSV (Ctrl+O)
+        private void OnImportLap(object sender, ExecutedRoutedEventArgs e)
+        {
+            var dialog = new ImportLapWindow(new ImportLapViewModel(_viewModel)) { Owner = this };
+            dialog.ShowDialog();
+        }
+
+        // File > Open My Laps Folder
+        private void OnOpenMyLapsFolder(object sender, RoutedEventArgs e)
+        {
+            string? folder = _viewModel.UserLapsFolder;
+            if (folder == null)
+            {
+                _viewModel.StatusMessage = "No 'references' folder was found, so there is no My Laps folder.";
+                return;
+            }
+            Process.Start(new ProcessStartInfo { FileName = folder, UseShellExecute = true });
+        }
+
+        private void OnExit(object sender, RoutedEventArgs e) => Close();
+
+        // Help > Import File Format
+        private void OnShowImportFormat(object sender, RoutedEventArgs e)
+        {
+            new InfoWindow("Import File Format", ImportLapViewModel.FormatDescription) { Owner = this }.ShowDialog();
+        }
+
+        // Help > About
+        private void OnAbout(object sender, RoutedEventArgs e)
+        {
+            const string about =
+                "OpenATLAS - Trackside Telemetry & Delta Analysis Workbench\n\n" +
+                "Compares two laps distance by distance: Racer 1 (live Assetto Corsa, the built-in\n" +
+                "simulation, or one of your saved laps) against Racer 2 (a real Formula 1 lap from\n" +
+                "FastF1, or another of your laps).\n\n" +
+                "F1 timing data via FastF1. Licensed under the GNU General Public License v3.0.";
+            new InfoWindow("About OpenATLAS", about) { Owner = this }.ShowDialog();
+        }
+
+        #endregion
 
         #region Distance Cursor
 
@@ -196,6 +284,7 @@ namespace OpenATLAS.Workbench
             _renderLoop.Dispose();
             _viewModel.ReferenceLapChanged -= OnReferenceLapChanged;
             _viewModel.LapReset -= OnLapReset;
+            _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
             _viewModel.Dispose();
         }
     }

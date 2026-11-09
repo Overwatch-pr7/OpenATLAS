@@ -24,8 +24,8 @@ Historical sessions are public: no F1 account or login is needed.
 --- Reference Library (used by the Workbench dropdowns) ---
 Laps are saved as: references/<Year>/<Grand Prix>/<DRIVER>.parquet
 (e.g. references/2021/Italian Grand Prix/HAM.parquet). One file per driver: their fastest lap.
-Each Grand Prix folder also gets a track.json with the sector boundaries and corner numbers
-used by the Workbench sector analysis. Corner names can be typed into its "name" fields by hand.
+Each Grand Prix folder also gets a track.json with the sector boundaries, corner numbers and
+track map outline used by the Workbench. Corner names can be typed into its "name" fields by hand.
 The event name is used rather than the circuit because some circuits host two events
 in a season (2021: Styrian and Austrian Grand Prix, both at Spielberg).
 
@@ -211,19 +211,73 @@ def TrackInfoPath(Year: int, GrandPrix: str) -> str:
     """Track layout (sectors + corners) shared by every lap of a Grand Prix: references/<Year>/<Grand Prix>/track.json"""
     return os.path.join(REFERENCE_DIR, str(Year), GrandPrix, TRACK_INFO_FILE)
 
+# Spacing of the track map outline points stored in track.json
+OUTLINE_STEP_M = 10
+
+# How far a turn number is drawn from its corner on the track map (FastF1's own map examples use 50 m)
+CORNER_LABEL_OFFSET_M = 50
+
+def RotateToMap(xy: np.ndarray, rotationDegrees: float) -> np.ndarray:
+    """Rotates FastF1 X/Y positions into the circuit's official map orientation."""
+    angle = np.deg2rad(rotationDegrees)
+    rotation = np.array([[np.cos(angle), np.sin(angle)], [-np.sin(angle), np.cos(angle)]])
+    return xy @ rotation
+
+def CornerLabelPositions(circuitInfo, rotationDegrees: float) -> dict:
+    """
+    Map position (metres, rotated) for each turn number, keyed by (number, letter).
+    FastF1's corner 'Angle' gives the side of the track the label belongs on, so labels sit
+    beside their corner instead of on top of the track, even where the circuit folds back on itself.
+    """
+    labels = {}
+    for _, c in circuitInfo.corners.iterrows():
+        angle = np.deg2rad(c['Angle'])
+        offset = np.array([CORNER_LABEL_OFFSET_M, 0.0]) @ np.array([[np.cos(angle), np.sin(angle)], [-np.sin(angle), np.cos(angle)]])
+        position = RotateToMap(np.array([c['X'] / 10.0 + offset[0], c['Y'] / 10.0 + offset[1]]), rotationDegrees)
+        labels[(int(c['Number']), str(c['Letter'] or ''))] = (round(float(position[0]), 1), round(float(position[1]), 1))
+    return labels
+
+def TrackOutline(session, lap, rotationDegrees: float) -> list:
+    """
+    Track map outline from a lap's X/Y position data: [distance_m, x_m, y_m] every
+    OUTLINE_STEP_M metres. FastF1 positions are in 1/10 m; they are converted to metres and
+    rotated by the circuit's official map rotation (the same orientation as F1 TV graphics).
+    """
+    telemetry = lap.get_telemetry()
+    telemetry = telemetry[telemetry['Distance'].diff().fillna(1) > 0]  # interp needs increasing distance
+
+    distance = telemetry['Distance'].values
+    xy = telemetry[['X', 'Y']].values / 10.0
+
+    xy = RotateToMap(xy, rotationDegrees)
+
+    steps = np.arange(0, distance[-1], OUTLINE_STEP_M)
+    x = np.interp(steps, distance, xy[:, 0])
+    y = np.interp(steps, distance, xy[:, 1])
+    return [[round(float(d), 1), round(float(px), 1), round(float(py), 1)] for d, px, py in zip(steps, x, y)]
+
 def ExportTrackInfo(session, Year: int, eventName: str):
     """
-    Writes track.json for the Workbench sector analysis:
+    Writes track.json for the Workbench sector analysis and track map:
       - sectors: start/end distance (m) of the three official timing sectors
-      - corners: turn numbers and their distance (m) along the lap; 'name' is left empty
-                 for hand-written corner names (e.g. "Prima Variante")
+      - corners: turn numbers, their distance (m) along the lap and where the number is drawn
+                 on the map (labelX/labelY); 'name' is left empty for hand-written corner
+                 names (e.g. "Prima Variante")
+      - outline: [distance_m, x_m, y_m] points for the track map (see TrackOutline)
 
     FastF1 only gives sector *times*, so the boundaries are found by looking up those
     times on the fastest lap's own distance trace.
+
+    An existing track.json missing the map data (outline or corner label positions) gets it
+    added; everything else in it, including hand-written corner names, is kept.
     """
     path = TrackInfoPath(Year, eventName)
+    existing = None
     if os.path.exists(path):
-        return
+        with open(path, encoding='utf-8') as f:
+            existing = json.load(f)
+        if 'outline' in existing and all('labelX' in c for c in existing.get('corners', [])):
+            return
 
     # Fastest lap that has all three sector times (some laps miss one, e.g. after a red flag)
     timedLaps = session.laps.dropna(subset=['LapTime', 'Sector1Time', 'Sector2Time', 'Sector3Time'])
@@ -232,43 +286,74 @@ def ExportTrackInfo(session, Year: int, eventName: str):
         return
     lap = timedLaps.sort_values('LapTime').iloc[0]
 
-    telemetry = DownloadSessionData(session, lap['Driver'])
-    if telemetry is None:
-        return
-    lapTime = telemetry['Time'].dt.total_seconds().values
-    distance = telemetry['Distance'].values
-
-    sector1End = lap['Sector1Time'].total_seconds()
-    sector2End = sector1End + lap['Sector2Time'].total_seconds()
-    boundaries = [0.0,
-                  float(np.interp(sector1End, lapTime, distance)),
-                  float(np.interp(sector2End, lapTime, distance)),
-                  float(distance[-1])]
+    try:
+        circuitInfo = session.get_circuit_info()
+    except Exception as e:
+        # Sectors and the outline are still useful without corner numbers
+        print(f"    circuit info unavailable ({e}), no corners and no map rotation")
+        circuitInfo = None
+    rotationDegrees = float(circuitInfo.rotation) if circuitInfo is not None else 0.0
 
     try:
-        corners = session.get_circuit_info().corners
-        cornerList = [{'number': int(c['Number']), 'letter': str(c['Letter'] or ''),
-                       'distanceMeters': round(float(c['Distance']), 1), 'name': ''}
-                      for _, c in corners.sort_values('Distance').iterrows()]
+        outline = TrackOutline(session, lap, rotationDegrees)
     except Exception as e:
-        # Sectors are still useful without corner numbers
-        print(f"    circuit info unavailable ({e}), writing sectors only")
-        cornerList = []
+        print(f"    position data unavailable ({e}), no track map outline")
+        outline = []
 
-    trackInfo = {
-        'event': eventName,
-        'location': session.event['Location'],
-        'lengthMeters': round(boundaries[-1], 1),
-        'sectors': [{'number': i + 1,
-                     'startMeters': round(boundaries[i], 1),
-                     'endMeters': round(boundaries[i + 1], 1)} for i in range(3)],
-        'corners': cornerList,
-    }
+    labels = CornerLabelPositions(circuitInfo, rotationDegrees) if circuitInfo is not None else {}
+
+    if existing is not None:
+        existing['mapRotationDegrees'] = rotationDegrees
+        if not existing.get('outline'):
+            existing['outline'] = outline
+        for corner in existing.get('corners', []):
+            label = labels.get((corner['number'], corner.get('letter', '')))
+            if label is not None:
+                corner['labelX'], corner['labelY'] = label
+        trackInfo = existing
+    else:
+        telemetry = DownloadSessionData(session, lap['Driver'])
+        if telemetry is None:
+            return
+        lapTime = telemetry['Time'].dt.total_seconds().values
+        distance = telemetry['Distance'].values
+
+        sector1End = lap['Sector1Time'].total_seconds()
+        sector2End = sector1End + lap['Sector2Time'].total_seconds()
+        boundaries = [0.0,
+                      float(np.interp(sector1End, lapTime, distance)),
+                      float(np.interp(sector2End, lapTime, distance)),
+                      float(distance[-1])]
+
+        cornerList = []
+        if circuitInfo is not None:
+            cornerList = []
+            for _, c in circuitInfo.corners.sort_values('Distance').iterrows():
+                key = (int(c['Number']), str(c['Letter'] or ''))
+                cornerList.append({'number': key[0], 'letter': key[1],
+                                   'distanceMeters': round(float(c['Distance']), 1), 'name': '',
+                                   'labelX': labels[key][0], 'labelY': labels[key][1]})
+
+        trackInfo = {
+            'event': eventName,
+            'location': session.event['Location'],
+            'lengthMeters': round(boundaries[-1], 1),
+            'sectors': [{'number': i + 1,
+                         'startMeters': round(boundaries[i], 1),
+                         'endMeters': round(boundaries[i + 1], 1)} for i in range(3)],
+            'corners': cornerList,
+            'mapRotationDegrees': rotationDegrees,
+            'outline': outline,
+        }
 
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, 'w', encoding='utf-8') as f:
-        json.dump(trackInfo, f, indent=2, ensure_ascii=False)
-    print(f"    track.json written ({len(cornerList)} corners)")
+        # One outline point per line keeps the file readable without thousands of lines
+        text = json.dumps({k: v for k, v in trackInfo.items() if k != 'outline'}, indent=2, ensure_ascii=False)
+        points = ',\n    '.join(json.dumps(pt) for pt in trackInfo['outline'])
+        f.write(text[:-2] + ',\n  "outline": [\n    ' + points + '\n  ]\n}\n')
+    print(f"    track.json {'updated' if existing is not None else 'written'} "
+          f"({len(trackInfo['corners'])} corners, {len(outline)} map points)")
 
 def ExportSession(Year: int, GrandPrix, SessionType: str, Driver: str = None) -> int:
     """Downloads one session and exports the fastest lap of every requested driver. Returns laps written."""

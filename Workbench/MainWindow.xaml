@@ -39,22 +39,73 @@
         </Style>
     </Window.Resources>
 
+    <Window.CommandBindings>
+        <!-- File > Import Lap (Ctrl+O) -->
+        <CommandBinding Command="ApplicationCommands.Open" Executed="OnImportLap" />
+    </Window.CommandBindings>
+
+    <Window.InputBindings>
+        <KeyBinding Key="F5" Command="{Binding StartRacer1Command}" />
+        <KeyBinding Key="F5" Modifiers="Shift" Command="{Binding StopRacer1Command}" />
+        <KeyBinding Key="F6" Command="{Binding PauseSimulationCommand}" />
+        <KeyBinding Key="R" Modifiers="Ctrl" Command="{Binding ResetLapCommand}" />
+    </Window.InputBindings>
+
     <Grid>
         <Grid.RowDefinitions>
-            <!-- Row 0: Top Command & Session Bar -->
+            <!-- Row 0: Menu Bar (File / Session / View / Help) -->
+            <RowDefinition Height="Auto" />
+            <!-- Row 1: Brand, Racer 1 Controls & Status Badge -->
             <RowDefinition Height="46" />
-            <!-- Row 1: Reference Lap Selector Bar -->
-            <RowDefinition Height="36" />
-            <!-- Row 2: Main Work Area (Trace Panes + Telemetry Sidebar) -->
+            <!-- Row 2: Racer Selection Bar (wraps on narrow windows) -->
+            <RowDefinition Height="Auto" />
+            <!-- Row 3: Main Work Area (Trace Panes + Telemetry Sidebar) -->
             <RowDefinition Height="*" />
-            <!-- Row 3: Bottom Engineering Status Bar -->
+            <!-- Row 4: Bottom Engineering Status Bar -->
             <RowDefinition Height="28" />
         </Grid.RowDefinitions>
 
         <!-- ========================================================================= -->
-        <!-- ROW 0: TOP COMMAND & SESSION HEADER                                       -->
+        <!-- ROW 0: MENU BAR                                                           -->
         <!-- ========================================================================= -->
         <Border Grid.Row="0"
+                Background="{StaticResource CanvasBackgroundBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,0,0,1"
+                Padding="6,0">
+            <Menu>
+                <MenuItem Header="_File">
+                    <MenuItem Header="_Import Lap from CSV..." Command="ApplicationCommands.Open" />
+                    <MenuItem Header="Open _My Laps Folder" Click="OnOpenMyLapsFolder" />
+                    <Separator />
+                    <MenuItem Header="E_xit" InputGestureText="Alt+F4" Click="OnExit" />
+                </MenuItem>
+                <MenuItem Header="_Session">
+                    <MenuItem Header="_Start Racer 1" InputGestureText="F5" Command="{Binding StartRacer1Command}" />
+                    <MenuItem Header="_Pause / Resume" InputGestureText="F6" Command="{Binding PauseSimulationCommand}" />
+                    <MenuItem Header="S_top" InputGestureText="Shift+F5" Command="{Binding StopRacer1Command}" />
+                    <MenuItem Header="_Reset Lap" InputGestureText="Ctrl+R" Command="{Binding ResetLapCommand}" />
+                    <Separator />
+                    <MenuItem Header="Record Live AC Laps to My Laps"
+                              IsCheckable="True"
+                              IsChecked="{Binding IsRecordingLaps, Mode=TwoWay}" />
+                </MenuItem>
+                <MenuItem Header="_View">
+                    <MenuItem Header="_Track Map"
+                              IsCheckable="True"
+                              IsChecked="{Binding IsTrackMapVisible, Mode=TwoWay}" />
+                </MenuItem>
+                <MenuItem Header="_Help">
+                    <MenuItem Header="Import File _Format..." Click="OnShowImportFormat" />
+                    <MenuItem Header="_About OpenATLAS" Click="OnAbout" />
+                </MenuItem>
+            </Menu>
+        </Border>
+
+        <!-- ========================================================================= -->
+        <!-- ROW 1: BRAND, RACER 1 CONTROLS & STATUS BADGE                             -->
+        <!-- ========================================================================= -->
+        <Border Grid.Row="1"
                 Background="{StaticResource HeaderBackgroundBrush}"
                 BorderBrush="{StaticResource BorderBrush}"
                 BorderThickness="0,0,0,1"
@@ -65,7 +116,7 @@
                     <ColumnDefinition Width="Auto" />
                     <!-- Spacer -->
                     <ColumnDefinition Width="*" />
-                    <!-- Telemetry Controls & Status Badge -->
+                    <!-- Racer 1 Controls & Status Badge -->
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
@@ -86,52 +137,59 @@
                                Margin="6,0,0,0" />
                 </StackPanel>
 
-                <!-- Right Action Buttons & Status Badge -->
+                <!-- Racer 1 controls: act on the source chosen in the selection bar -->
                 <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                    <!-- Connect Live Button -->
-                    <Button Content="CONNECT AC"
+                    <Button Content="START"
                             Style="{StaticResource TracksidePrimaryButton}"
-                            Command="{Binding ConnectLiveCommand}"
+                            Command="{Binding StartRacer1Command}"
+                            ToolTip="Start Racer 1 from the selected source (F5)"
                             Margin="0,0,6,0" />
 
-                    <!-- Disconnect Live Button -->
-                    <Button Content="DISCONNECT"
-                            Style="{StaticResource TracksideButton}"
-                            Command="{Binding DisconnectLiveCommand}"
-                            Margin="0,0,6,0" />
-
-                    <!-- Run Simulation Replay Button (Task 3.3 Dry Run) -->
-                    <Button Content="SIMULATE LAP"
-                            Style="{StaticResource TracksideButton}"
-                            Command="{Binding StartSimulationCommand}"
-                            Margin="0,0,6,0" />
-
-                    <!-- Pause / Resume Simulation Replay Button -->
+                    <!-- Pause / Resume (simulation and saved lap replay) -->
                     <Button Command="{Binding PauseSimulationCommand}"
+                            ToolTip="Pause or resume a simulation or saved lap replay (F6)"
                             Margin="0,0,6,0">
                         <Button.Style>
                             <Style TargetType="Button" BasedOn="{StaticResource TracksideButton}">
-                                <Setter Property="Content" Value="PAUSE SIM" />
+                                <Setter Property="Content" Value="PAUSE" />
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding IsSimulationPaused}" Value="True">
-                                        <Setter Property="Content" Value="RESUME SIM" />
+                                        <Setter Property="Content" Value="RESUME" />
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>
                         </Button.Style>
                     </Button>
 
-                    <!-- Stop Simulation Replay Button -->
-                    <Button Content="STOP SIM"
+                    <Button Content="STOP"
                             Style="{StaticResource TracksideButton}"
-                            Command="{Binding StopSimulationCommand}"
+                            Command="{Binding StopRacer1Command}"
+                            ToolTip="Stop Racer 1 (Shift+F5)"
                             Margin="0,0,6,0" />
 
-                    <!-- Reset Lap Counter Button -->
                     <Button Content="RESET LAP"
                             Style="{StaticResource TracksideButton}"
                             Command="{Binding ResetLapCommand}"
-                            Margin="0,0,12,0" />
+                            ToolTip="Clear the live traces, deltas and pins (Ctrl+R)"
+                            Margin="0,0,6,0" />
+
+                    <!-- Saves every complete live AC lap to My Laps while on -->
+                    <Button Command="{Binding ToggleRecordingCommand}"
+                            ToolTip="Save every complete live AC lap to My Laps"
+                            Margin="0,0,12,0">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource TracksideButton}">
+                                <Setter Property="Content" Value="REC OFF" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsRecordingLaps}" Value="True">
+                                        <Setter Property="Content" Value="REC ON" />
+                                        <Setter Property="Foreground" Value="{StaticResource BrakeBrush}" />
+                                        <Setter Property="BorderBrush" Value="{StaticResource BrakeBrush}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
 
                     <!-- Active Mode Badge -->
                     <Border Background="{StaticResource CanvasBackgroundBrush}"
@@ -151,30 +209,76 @@
         </Border>
 
         <!-- ========================================================================= -->
-        <!-- ROW 1: REFERENCE LAP SELECTOR (Year -> Track -> Driver)                   -->
+        <!-- ROW 2: RACER SELECTION (Racer 1 = compared lap, Racer 2 = reference)      -->
         <!-- ========================================================================= -->
-        <Border Grid.Row="1"
+        <Border Grid.Row="2"
                 Background="{StaticResource PanelBackgroundBrush}"
                 BorderBrush="{StaticResource BorderBrush}"
                 BorderThickness="0,0,0,1"
                 Padding="14,0">
-            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                <TextBlock Text="REFERENCE LAP"
-                           Style="{StaticResource TelemetryLabelText}"
-                           Foreground="{StaticResource ForegroundHighlightBrush}"
-                           VerticalAlignment="Center"
-                           Margin="0,0,18,0" />
-                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+            <WrapPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <!-- RACER 1 -->
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,6,24,6">
+                    <TextBlock Text="RACER 1"
+                               Style="{StaticResource TelemetryLabelText}"
+                               Foreground="{StaticResource LiveTraceBrush}"
+                               VerticalAlignment="Center"
+                               Margin="0,0,12,0" />
+                    <TextBlock Text="SOURCE"
+                               Style="{StaticResource TelemetryLabelText}"
+                               VerticalAlignment="Center"
+                               Margin="0,0,6,0" />
+                    <ComboBox Style="{StaticResource TracksideComboBox}"
+                              Width="110"
+                              Foreground="{StaticResource LiveTraceBrush}"
+                              ItemsSource="{Binding Racer1Sources}"
+                              SelectedItem="{Binding SelectedRacer1Source}"
+                              IsEnabled="{Binding CanChangeReference}"
+                              ToolTip="Where Racer 1's lap comes from: live Assetto Corsa, the built-in simulation, or one of your saved laps" />
+
+                    <!-- Saved lap picker, only for the SAVED LAP source -->
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <StackPanel.Style>
+                            <Style TargetType="StackPanel">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsSavedLapSource}" Value="True">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </StackPanel.Style>
+                        <TextBlock Text="LAP"
+                                   Style="{StaticResource TelemetryLabelText}"
+                                   VerticalAlignment="Center"
+                                   Margin="12,0,6,0" />
+                        <ComboBox Style="{StaticResource TracksideComboBox}"
+                                  Width="210"
+                                  Foreground="{StaticResource LiveTraceBrush}"
+                                  ItemsSource="{Binding AvailableSavedLaps}"
+                                  SelectedItem="{Binding SelectedSavedLap}"
+                                  IsEnabled="{Binding CanChangeReference}"
+                                  ToolTip="Your saved laps for the selected Grand Prix (File > Import Lap, or REC while driving)" />
+                    </StackPanel>
+                </StackPanel>
+
+                <!-- RACER 2 (reference) -->
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,6">
+                    <TextBlock Text="RACER 2"
+                               Style="{StaticResource TelemetryLabelText}"
+                               Foreground="{StaticResource ReferenceTraceBrush}"
+                               VerticalAlignment="Center"
+                               Margin="0,0,12,0" />
                     <TextBlock Text="YEAR"
                                Style="{StaticResource TelemetryLabelText}"
                                VerticalAlignment="Center"
                                Margin="0,0,6,0" />
                     <ComboBox Style="{StaticResource TracksideComboBox}"
-                              Width="70"
+                              Width="80"
                               ItemsSource="{Binding AvailableYears}"
                               SelectedItem="{Binding SelectedYear}"
                               IsEnabled="{Binding CanChangeReference}"
-                              ToolTip="Championship year" />
+                              ToolTip="Championship year, or My Laps for your own saved laps" />
 
                     <TextBlock Text="GRAND PRIX"
                                Style="{StaticResource TelemetryLabelText}"
@@ -185,19 +289,19 @@
                               ItemsSource="{Binding AvailableTracks}"
                               SelectedItem="{Binding SelectedTrack}"
                               IsEnabled="{Binding CanChangeReference}"
-                              ToolTip="Grand Prix" />
+                              ToolTip="Grand Prix (also filters Racer 1's saved laps)" />
 
                     <TextBlock Text="DRIVER"
                                Style="{StaticResource TelemetryLabelText}"
                                VerticalAlignment="Center"
                                Margin="12,0,6,0" />
                     <ComboBox Style="{StaticResource TracksideComboBox}"
-                              Width="70"
+                              Width="140"
                               Foreground="{StaticResource ReferenceTraceBrush}"
                               ItemsSource="{Binding AvailableDrivers}"
                               SelectedItem="{Binding SelectedDriver}"
                               IsEnabled="{Binding CanChangeReference}"
-                              ToolTip="Driver's fastest qualifying lap" />
+                              ToolTip="Driver's fastest qualifying lap, or one of your saved laps" />
 
                     <TextBlock Text="LAP"
                                Style="{StaticResource TelemetryLabelText}"
@@ -210,13 +314,13 @@
                                Foreground="{StaticResource ForegroundHighlightBrush}"
                                VerticalAlignment="Center" />
                 </StackPanel>
-            </StackPanel>
+            </WrapPanel>
         </Border>
 
         <!-- ========================================================================= -->
-        <!-- ROW 2: MAIN TRACE WORKSPACE & TELEMETRY SIDEBAR                           -->
+        <!-- ROW 3: MAIN TRACE WORKSPACE & TELEMETRY SIDEBAR                           -->
         <!-- ========================================================================= -->
-        <Grid Grid.Row="2">
+        <Grid Grid.Row="3">
             <Grid.ColumnDefinitions>
                 <!-- Column 0: 3 Synchronized Plot Trace Panes -->
                 <ColumnDefinition Width="*" />
@@ -422,6 +526,8 @@
             <Border Grid.Column="1"
                     Style="{StaticResource TracksidePanelBorder}"
                     Margin="4,8,8,8">
+                <!-- Scrolls when the window is too short to show every section -->
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                 <Grid>
                     <Grid.RowDefinitions>
                         <!-- Section 1: Live Delta Readout -->
@@ -431,7 +537,9 @@
                         <!-- Section 3: Driver Input Gauges -->
                         <RowDefinition Height="Auto" />
                         <!-- Section 4: Sector Timing & Session Metrics -->
-                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                        <!-- Section 5: Track Map -->
+                        <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
 
                     <!-- ============================================================= -->
@@ -727,14 +835,91 @@
                             </TextBlock>
                         </StackPanel>
                     </Border>
+
+                    <!-- ============================================================= -->
+                    <!-- SECTION 5: TRACK MAP (outline from track.json, hideable)      -->
+                    <!-- ============================================================= -->
+                    <Border Grid.Row="4"
+                            BorderBrush="{StaticResource BorderBrush}"
+                            BorderThickness="0,1,0,0"
+                            Padding="12,10">
+                        <StackPanel>
+                            <Grid Margin="0,0,0,8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="TRACK MAP" Style="{StaticResource TelemetryLabelText}" VerticalAlignment="Center" />
+                                <Button Grid.Column="1"
+                                        Command="{Binding ToggleTrackMapCommand}"
+                                        Padding="8,2"
+                                        FontSize="10">
+                                    <Button.Style>
+                                        <Style TargetType="Button" BasedOn="{StaticResource TracksideButton}">
+                                            <Setter Property="Content" Value="HIDE" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsTrackMapVisible}" Value="False">
+                                                    <Setter Property="Content" Value="SHOW" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
+                            </Grid>
+
+                            <Grid>
+                                <Grid.Style>
+                                    <Style TargetType="Grid">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsTrackMapVisible}" Value="False">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Grid.Style>
+
+                                <!-- Display only: hit testing off so the mouse wheel scrolls the sidebar -->
+                                <sp:WpfPlot x:Name="TrackMapPlot"
+                                            Height="{Binding TrackMapHeight}"
+                                            IsHitTestVisible="False">
+                                    <sp:WpfPlot.Style>
+                                        <Style TargetType="sp:WpfPlot">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding HasTrackMap}" Value="False">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </sp:WpfPlot.Style>
+                                </sp:WpfPlot>
+
+                                <TextBlock Text="No map data for this Grand Prix. Re-run extract_reference.py to add an outline to its track.json."
+                                           FontSize="10"
+                                           TextWrapping="Wrap"
+                                           Foreground="{StaticResource ForegroundMutedBrush}">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding HasTrackMap}" Value="False">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
                 </Grid>
+                </ScrollViewer>
             </Border>
         </Grid>
 
         <!-- ========================================================================= -->
-        <!-- ROW 3: BOTTOM ENGINEERING STATUS BAR                                      -->
+        <!-- ROW 4: BOTTOM ENGINEERING STATUS BAR                                      -->
         <!-- ========================================================================= -->
-        <Border Grid.Row="3"
+        <Border Grid.Row="4"
                 Background="{StaticResource HeaderBackgroundBrush}"
                 BorderBrush="{StaticResource BorderBrush}"
                 BorderThickness="0,1,0,0"

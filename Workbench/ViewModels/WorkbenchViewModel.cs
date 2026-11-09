@@ -1,11 +1,13 @@
 using System;
 using System.Collections.ObjectModel;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Input;
 using OpenATLAS.Core.Collections;
 using OpenATLAS.Core.Engine;
+using OpenATLAS.Core.Import;
 using OpenATLAS.Core.Models;
 using OpenATLAS.Core.Network;
 using OpenATLAS.Core.Reference;
@@ -50,8 +52,28 @@ namespace OpenATLAS.Workbench.ViewModels
         // Bottom status bar "SOURCE:" text: where the live data currently comes from
         public const string SourceNone = "N/A";
         public const string SourceSimulation = "SIMULATED REPLAY OF REFERENCE LAP";
+        public const string SourceSavedLap = "SAVED LAP";
         public const string SourceAssettoCorsa = @"ASSETTO CORSA SHARED MEMORY (Local\acpmf_*)";
         private string _dataSource = SourceNone;
+
+        // Racer 1: where the compared lap comes from. Racer 2 is the reference (Year/Grand Prix/Driver).
+        public const string Racer1LiveAc = "LIVE AC";
+        public const string Racer1Simulation = "SIMULATION";
+        public const string Racer1SavedLap = "SAVED LAP";
+        public static IReadOnlyList<string> Racer1Sources { get; } = [Racer1LiveAc, Racer1Simulation, Racer1SavedLap];
+        private string _selectedRacer1Source = Racer1Simulation;
+        private IReadOnlyList<string> _availableSavedLaps = [];
+        private string? _selectedSavedLap;
+
+        // Status shown while a playback (simulation or saved lap) runs / is paused
+        private string _playbackStatus = "";
+        private string _playbackPausedStatus = "";
+        private string _playbackMessage = "";
+
+        // Live AC lap recording into My Laps (recorder is used on the listener thread; lock it)
+        private readonly LapRecorder _recorder = new();
+        private volatile bool _isRecordingLaps;
+        private int _lastCompletedLaps = -1;
 
         private string _referenceTrackName = "-";
         private string _referenceDriverName = "-";
@@ -131,12 +153,71 @@ namespace OpenATLAS.Workbench.ViewModels
         /// </summary>
         public ICommand ResetLapCommand { get; }
 
+        /// <summary>Shows or hides the track map section in the sidebar.</summary>
+        public ICommand ToggleTrackMapCommand { get; }
+
+        /// <summary>START: begins Racer 1 from the selected source (live AC, simulation or saved lap).</summary>
+        public ICommand StartRacer1Command { get; }
+
+        /// <summary>STOP: ends whatever Racer 1 is running.</summary>
+        public ICommand StopRacer1Command { get; }
+
+        /// <summary>Turns saving of completed live AC laps to My Laps on or off.</summary>
+        public ICommand ToggleRecordingCommand { get; }
+
         public CircularBuffer<LiveDeltaSnapshot> CircularBuffer => _circularBuffer;
 
         /// <summary>Sector analysis rows for the selected Grand Prix (empty when it has no track.json).</summary>
         public ObservableCollection<SectorViewModel> Sectors { get; } = [];
 
         public bool HasSectors => Sectors.Count > 0;
+
+        // Track map sizing: the sidebar's inner width, and the height range a map may take
+        public const double TrackMapWidth = 284;
+        public const double TrackMapMinHeight = 140;
+        public const double TrackMapMaxHeight = 320;
+
+        private TrackLayout? _trackLayout;
+        private bool _isTrackMapVisible = true;
+        private double _trackMapHeight = TrackMapWidth;
+
+        /// <summary>Sectors, corners and map outline of the selected Grand Prix (null without a track.json).</summary>
+        public TrackLayout? TrackLayout
+        {
+            get => _trackLayout;
+            private set
+            {
+                if (!SetProperty(ref _trackLayout, value)) return;
+                OnPropertyChanged(nameof(HasTrackMap));
+                TrackMapHeight = MapHeightFor(value);
+            }
+        }
+
+        public bool HasTrackMap => _trackLayout?.HasOutline == true;
+
+        /// <summary>Shown/hidden with the HIDE/SHOW button on the TRACK MAP header.</summary>
+        public bool IsTrackMapVisible
+        {
+            get => _isTrackMapVisible;
+            set => SetProperty(ref _isTrackMapVisible, value);
+        }
+
+        /// <summary>
+        /// Map height for the current track: the full sidebar width times the track's
+        /// height/width ratio, within limits so tall tracks don't push everything else away.
+        /// Computed per track, so tracks added later need no layout changes.
+        /// </summary>
+        public double TrackMapHeight
+        {
+            get => _trackMapHeight;
+            private set => SetProperty(ref _trackMapHeight, value);
+        }
+
+        public static double MapHeightFor(TrackLayout? layout)
+        {
+            if (layout == null || !layout.HasOutline) return TrackMapMinHeight;
+            return Math.Clamp(TrackMapWidth * layout.MapAspectRatio, TrackMapMinHeight, TrackMapMaxHeight);
+        }
 
         /// <summary>Distance cursor readout shown in the trace pane headers.</summary>
         public CursorReadoutViewModel Cursor { get; } = new();
@@ -169,6 +250,10 @@ namespace OpenATLAS.Workbench.ViewModels
             StopSimulationCommand = new RelayCommand(StopSimulationReplay, () => IsSimulating);
             PauseSimulationCommand = new RelayCommand(TogglePauseSimulation, () => IsSimulating);
             ResetLapCommand = new RelayCommand(ResetLap);
+            ToggleTrackMapCommand = new RelayCommand(() => IsTrackMapVisible = !IsTrackMapVisible);
+            StartRacer1Command = new RelayCommand(StartRacer1, () => !IsRunning && (!IsSavedLapSource || SelectedSavedLap != null));
+            StopRacer1Command = new RelayCommand(StopRacer1, () => IsRunning);
+            ToggleRecordingCommand = new RelayCommand(() => IsRecordingLaps = !IsRecordingLaps);
 
             AvailableYears = _library?.GetYears() ?? [];
 
@@ -210,6 +295,7 @@ namespace OpenATLAS.Workbench.ViewModels
                 {
                     OnPropertyChanged(nameof(CanToggleLive));
                     OnPropertyChanged(nameof(CanChangeReference));
+                    OnPropertyChanged(nameof(IsRunning));
                 }
             }
         }
@@ -223,11 +309,64 @@ namespace OpenATLAS.Workbench.ViewModels
                 {
                     OnPropertyChanged(nameof(CanToggleLive));
                     OnPropertyChanged(nameof(CanChangeReference));
+                    OnPropertyChanged(nameof(IsRunning));
                 }
             }
         }
 
         public bool CanToggleLive => !IsSimulating;
+
+        /// <summary>True while Racer 1 is running from any source.</summary>
+        public bool IsRunning => IsLiveConnected || IsSimulating;
+
+        public string SelectedRacer1Source
+        {
+            get => _selectedRacer1Source;
+            set
+            {
+                if (SetProperty(ref _selectedRacer1Source, value)) OnPropertyChanged(nameof(IsSavedLapSource));
+            }
+        }
+
+        public bool IsSavedLapSource => _selectedRacer1Source == Racer1SavedLap;
+
+        /// <summary>The user's saved laps for the selected Grand Prix (Racer 1 SAVED LAP choices).</summary>
+        public IReadOnlyList<string> AvailableSavedLaps
+        {
+            get => _availableSavedLaps;
+            private set => SetProperty(ref _availableSavedLaps, value);
+        }
+
+        public string? SelectedSavedLap
+        {
+            get => _selectedSavedLap;
+            set => SetProperty(ref _selectedSavedLap, value);
+        }
+
+        /// <summary>Grands Prix a lap can be imported under (every one with F1 reference data).</summary>
+        public IReadOnlyList<string> ImportGrandPrixOptions => _library?.GetAllGrandPrix() ?? [];
+
+        /// <summary>Grand Prix currently selected for Racer 2, the default for imports.</summary>
+        public string? SelectedGrandPrix => _selectedTrack;
+
+        public bool IsRecordingLaps
+        {
+            get => _isRecordingLaps;
+            set
+            {
+                if (_isRecordingLaps == value) return;
+                _isRecordingLaps = value;
+                lock (_recorder)
+                {
+                    _recorder.Discard();
+                    _lastCompletedLaps = -1;
+                }
+                OnPropertyChanged();
+                StatusMessage = value
+                    ? "Recording on: every complete live AC lap is saved to My Laps."
+                    : "Recording off.";
+            }
+        }
 
         public bool IsSimulationPaused
         {
@@ -485,6 +624,7 @@ namespace OpenATLAS.Workbench.ViewModels
             AvailableDrivers = value != null && _selectedYear != null && _library != null
                 ? _library.GetDrivers(_selectedYear, value)
                 : [];
+            RefreshSavedLaps();
 
             string? driver = PickOrFirst(AvailableDrivers, previousDriver);
             if (driver == _selectedDriver)
@@ -541,10 +681,11 @@ namespace OpenATLAS.Workbench.ViewModels
         {
             Sectors.Clear();
             _activeSector = -1;
+            TrackLayout? layout = null;
 
             try
             {
-                TrackLayout? layout = _library?.GetTrackLayout(_selectedYear!, _selectedTrack!);
+                layout = _library?.GetTrackLayout(_selectedYear!, _selectedTrack!);
                 if (layout != null)
                 {
                     foreach (TrackSector sector in layout.Sectors)
@@ -560,6 +701,7 @@ namespace OpenATLAS.Workbench.ViewModels
             }
 
             OnPropertyChanged(nameof(HasSectors));
+            TrackLayout = layout;
         }
 
         /// <summary>
@@ -743,6 +885,55 @@ namespace OpenATLAS.Workbench.ViewModels
             // Process() pushes the snapshot into the ring buffer (engine OutputBuffer).
             // No UI work here: the 60 Hz render loop picks it up (Task 4.3).
             _deltaEngine.Process(packet, _accumulatedDistance, _accumulatedLapTime);
+
+            if (_isRecordingLaps) RecordSample(packet, graphics);
+        }
+
+        /// <summary>
+        /// Recording follows AC's own lap counter and lap clock, so saved laps start and end exactly
+        /// on AC's start/finish line. Distance is integrated from speed when the lap is normalized.
+        /// </summary>
+        private void RecordSample(in AcPhysicsPacket packet, in AcGraphicsPacket graphics)
+        {
+            if (graphics.Status != AcStatus.Live || _referenceLap == null) return; // menus, replays, pause
+
+            IReadOnlyList<RawLapSample>? finished = null;
+            lock (_recorder)
+            {
+                if (_lastCompletedLaps >= 0 && graphics.CompletedLaps != _lastCompletedLaps)
+                {
+                    finished = _recorder.FinishLap(_referenceLap.TrackLengthMeters);
+                }
+                _lastCompletedLaps = graphics.CompletedLaps;
+
+                _recorder.Add(new RawLapSample(
+                    graphics.CurrentTimeMs / 1000.0, double.NaN, packet.SpeedKmh,
+                    packet.Gas * 100.0, packet.Brake * 100.0, packet.DisplayGear, packet.Rpms));
+            }
+
+            if (finished != null && _selectedTrack is string grandPrix)
+            {
+                string lapTime = TimeSpan.FromMilliseconds(graphics.LastTimeMs).ToString(@"m\.ss\.fff");
+                string name = $"AC {DateTime.Now:yyyy-MM-dd HH.mm} {lapTime}";
+                Task.Run(() => SaveRecordedLap(finished, grandPrix, name));
+            }
+        }
+
+        private void SaveRecordedLap(IReadOnlyList<RawLapSample> samples, string grandPrix, string name)
+        {
+            try
+            {
+                string saved = _library!.SaveUserLap(LapNormalizer.Normalize(samples), grandPrix, name);
+                RunOnUiThread(() =>
+                {
+                    RefreshUserLaps();
+                    StatusMessage = $"Lap saved to My Laps > {grandPrix} > {saved}.";
+                });
+            }
+            catch (Exception ex)
+            {
+                RunOnUiThread(() => StatusMessage = $"Could not save the recorded lap: {ex.Message}");
+            }
         }
 
         public void StopLiveIngestion()
@@ -758,6 +949,12 @@ namespace OpenATLAS.Workbench.ViewModels
                 _sharedMemoryListener = null;
             }
 
+            lock (_recorder)
+            {
+                _recorder.Discard();
+                _lastCompletedLaps = -1;
+            }
+
             IsLiveConnected = false;
             ConnectionStatus = "STANDBY";
             DataSource = SourceNone;
@@ -766,67 +963,94 @@ namespace OpenATLAS.Workbench.ViewModels
 
         #endregion
 
-        #region Simulation Dry-Run Mode
+        #region Racer 1 Playback (Simulation & Saved Lap)
 
         public void StartSimulationReplay()
         {
-            if (IsLiveConnected || IsSimulating) return;
-
             if (_referenceLap == null)
             {
                 StatusMessage = "Cannot run simulation without a reference lap. Select one first.";
                 return;
             }
 
+            StartPlayback(new SyntheticDriver(_referenceLap), "SIMULATION REPLAY", "SIMULATION PAUSED", SourceSimulation,
+                $"Running 60Hz simulated replay vs {ReferenceDriverName} ({ReferenceSession}) baseline...");
+        }
+
+        /// <summary>Replays the selected saved lap (Racer 1) against the selected reference (Racer 2).</summary>
+        public void StartSavedLapReplay()
+        {
+            if (_referenceLap == null)
+            {
+                StatusMessage = "Cannot replay a lap without a reference lap. Select one first.";
+                return;
+            }
+            if (_library == null || _selectedTrack == null || SelectedSavedLap == null)
+            {
+                StatusMessage = "No saved lap selected. Import one (File > Import Lap) or record one live first.";
+                return;
+            }
+
+            ReferenceLapIndex saved;
+            try
+            {
+                saved = ReferenceLapIndex.FromParquetFile(
+                    _library.GetLapPath(ReferenceLibrary.UserLapsFolderName, _selectedTrack, SelectedSavedLap));
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = $"Could not load saved lap '{SelectedSavedLap}': {ex.Message}";
+                return;
+            }
+
+            StartPlayback(new SavedLapDriver(saved, _referenceLap.TrackLengthMeters), "SAVED LAP REPLAY", "SAVED LAP PAUSED",
+                $"{SourceSavedLap}: {SelectedSavedLap}",
+                $"Replaying {SelectedSavedLap} vs {ReferenceDriverName} ({ReferenceSession})...");
+        }
+
+        // Runs a Racer 1 playback at a fixed 60 Hz: the driver produces a sample, the delta engine
+        // compares it with the reference, and the result goes into the ring buffer for the render loop.
+        private void StartPlayback(IPlaybackDriver driver, string status, string pausedStatus, string source, string message)
+        {
+            if (IsLiveConnected || IsSimulating) return;
+
             _simulationCts = new CancellationTokenSource();
             CancellationToken token = _simulationCts.Token;
 
+            _playbackStatus = status;
+            _playbackPausedStatus = pausedStatus;
+            _playbackMessage = message;
+
             IsSimulationPaused = false;
             IsSimulating = true;
-            ConnectionStatus = "SIMULATION REPLAY";
-            DataSource = SourceSimulation;
-            StatusMessage = $"Running 60Hz simulated replay vs {ReferenceDriverName} ({ReferenceSession}) baseline...";
+            ConnectionStatus = status;
+            DataSource = source;
+            StatusMessage = message;
 
             _simulationTask = Task.Run(async () =>
             {
-                float simDistance = 0f;
-                float simTime = 0f;
                 const float dt = 0.01667f; // Fixed 60Hz tick
 
                 while (!token.IsCancellationRequested && _referenceLap != null && _deltaEngine != null)
                 {
-                    // Paused: simulated time and distance stand still, so resuming continues seamlessly
+                    // Paused: playback time and distance stand still, so resuming continues seamlessly
                     if (_isSimulationPaused)
                     {
                         await Task.Delay(16, token).ConfigureAwait(false);
                         continue;
                     }
 
-                    ReferenceSample refSample = _referenceLap.GetSampleAtDistance(simDistance);
-
-                    // Inject slight driver variation: slightly slower in S1, faster in S2
-                    float variation = simDistance < 2000f ? 0.985f : 1.01f;
-                    float simSpeed = refSample.SpeedKmh * variation;
-                    float speedMps = simSpeed / 3.6f;
-
-                    simDistance += speedMps * dt;
-                    simTime += dt;
-
-                    if (simDistance >= _referenceLap.TrackLengthMeters)
-                    {
-                        simDistance = 0f;
-                        simTime = 0f;
-                        _deltaEngine.Reset();
-                    }
+                    PlaybackSample sample = driver.Next(dt);
+                    if (sample.NewLap) _deltaEngine.Reset();
 
                     LiveDeltaSnapshot delta = _deltaEngine.Calculate(
-                        simDistance: simDistance,
-                        simTime: simTime,
-                        simSpeed: simSpeed,
-                        simThrottle: refSample.Throttle,
-                        simBrake: refSample.Brake,
-                        simGear: refSample.Gear,
-                        simRpm: refSample.Rpms
+                        simDistance: sample.Distance,
+                        simTime: sample.Time,
+                        simSpeed: sample.Speed,
+                        simThrottle: sample.Throttle,
+                        simBrake: sample.Brake,
+                        simGear: sample.Gear,
+                        simRpm: sample.Rpm
                     );
 
                     // Only feed the ring buffer; the 60 Hz render loop draws it (Task 4.3)
@@ -846,7 +1070,7 @@ namespace OpenATLAS.Workbench.ViewModels
             IsSimulating = false;
             ConnectionStatus = "STANDBY";
             DataSource = SourceNone;
-            StatusMessage = "Simulation stopped.";
+            StatusMessage = "Playback stopped.";
         }
 
         public void TogglePauseSimulation()
@@ -854,10 +1078,87 @@ namespace OpenATLAS.Workbench.ViewModels
             if (!IsSimulating) return;
 
             IsSimulationPaused = !IsSimulationPaused;
-            ConnectionStatus = IsSimulationPaused ? "SIMULATION PAUSED" : "SIMULATION REPLAY";
+            ConnectionStatus = IsSimulationPaused ? _playbackPausedStatus : _playbackStatus;
             StatusMessage = IsSimulationPaused
-                ? "Simulation paused. Click RESUME to continue from the same point."
-                : $"Running 60Hz simulated replay vs {ReferenceDriverName} ({ReferenceSession}) baseline...";
+                ? "Paused. Click RESUME to continue from the same point."
+                : _playbackMessage;
+        }
+
+        // START: whichever Racer 1 source is selected
+        public void StartRacer1()
+        {
+            switch (SelectedRacer1Source)
+            {
+                case Racer1LiveAc: StartLiveIngestion(); break;
+                case Racer1SavedLap: StartSavedLapReplay(); break;
+                default: StartSimulationReplay(); break;
+            }
+        }
+
+        public void StopRacer1()
+        {
+            if (IsLiveConnected) StopLiveIngestion();
+            if (IsSimulating) StopSimulationReplay();
+        }
+
+        #endregion
+
+        #region My Laps (Import & Library)
+
+        /// <summary>
+        /// Normalizes an imported lap and saves it to My Laps under the given Grand Prix.
+        /// Returns the name it was saved under. Throws when the lap cannot be used.
+        /// </summary>
+        public string SaveImportedLap(IReadOnlyList<RawLapSample> samples, string grandPrix, string lapName)
+        {
+            if (_library == null)
+            {
+                throw new InvalidOperationException("No 'references' folder was found, so there is nowhere to save laps.");
+            }
+
+            string saved = _library.SaveUserLap(LapNormalizer.Normalize(samples), grandPrix, lapName);
+            RefreshUserLaps();
+            if (grandPrix == _selectedTrack) SelectedSavedLap = saved;
+            StatusMessage = $"Lap imported to My Laps > {grandPrix} > {saved}.";
+            return saved;
+        }
+
+        /// <summary>Folder holding the user's laps (created if missing), for File > Open My Laps Folder.</summary>
+        public string? UserLapsFolder
+        {
+            get
+            {
+                if (_library == null) return null;
+                string folder = Path.Combine(_library.RootPath, ReferenceLibrary.UserLapsFolderName);
+                Directory.CreateDirectory(folder);
+                return folder;
+            }
+        }
+
+        // Picks up newly saved laps in the Racer 1 list, and in the Racer 2 dropdowns when "My Laps"
+        // is selected there. Lists are only replaced when their contents changed, so the current
+        // selections (and the loaded reference) are left alone.
+        private void RefreshUserLaps()
+        {
+            if (_library == null) return;
+
+            var years = _library.GetYears();
+            if (!years.SequenceEqual(AvailableYears)) AvailableYears = years;
+
+            if (_selectedYear == ReferenceLibrary.UserLapsFolderName && _selectedTrack != null)
+            {
+                var drivers = _library.GetDrivers(_selectedYear, _selectedTrack);
+                if (!drivers.SequenceEqual(AvailableDrivers)) AvailableDrivers = drivers;
+            }
+
+            RefreshSavedLaps();
+        }
+
+        private void RefreshSavedLaps()
+        {
+            var laps = _library != null && _selectedTrack != null ? _library.GetUserLaps(_selectedTrack) : [];
+            if (!laps.SequenceEqual(AvailableSavedLaps)) AvailableSavedLaps = laps;
+            SelectedSavedLap = PickOrFirst(AvailableSavedLaps, SelectedSavedLap);
         }
 
         #endregion

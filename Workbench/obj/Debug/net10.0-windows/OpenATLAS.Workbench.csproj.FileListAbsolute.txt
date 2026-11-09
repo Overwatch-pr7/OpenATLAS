@@ -83,3 +83,7 @@ C:\Users\SOHAM\Desktop\OpenATLAS\Workbench\obj\Debug\net10.0-windows\OpenATLAS.W
 C:\Users\SOHAM\Desktop\OpenATLAS\Workbench\obj\Debug\net10.0-windows\OpenATLA.7AF37FE5.Up2Date
 C:\Users\SOHAM\Desktop\OpenATLAS\Workbench\obj\Debug\net10.0-windows\Themes\TracksideTheme.baml
 C:\Users\SOHAM\Desktop\OpenATLAS\Workbench\obj\Debug\net10.0-windows\App.baml
+C:\Users\SOHAM\Desktop\OpenATLAS\Workbench\obj\Debug\net10.0-windows\ImportLapWindow.baml
+C:\Users\SOHAM\Desktop\OpenATLAS\Workbench\obj\Debug\net10.0-windows\InfoWindow.baml
+C:\Users\SOHAM\Desktop\OpenATLAS\Workbench\obj\Debug\net10.0-windows\ImportLapWindow.g.cs
+C:\Users\SOHAM\Desktop\OpenATLAS\Workbench\obj\Debug\net10.0-windows\InfoWindow.g.cs

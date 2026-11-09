@@ -278,6 +278,9 @@ namespace OpenATLAS.Workbench.Plotting
 
         public int LiveCount { get; private set; }
 
+        /// <summary>Distance of the newest live sample (where the car is now), or null with no live data.</summary>
+        public double? LatestLiveDistance => LiveCount > 0 ? _liveDistance[LiveCount - 1] : null;
+
         private void SetLiveCount(int count)
         {
             LiveCount = count;

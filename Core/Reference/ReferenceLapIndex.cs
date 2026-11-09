@@ -100,6 +100,24 @@ namespace OpenATLAS.Core.Reference
             }
         }
 
+        // Inverse of GetTimeAtDistance: distance covered after a given lap time (metres).
+        // Used to replay a saved lap in real time. Time increases along the lap, so binary search applies.
+        public float GetDistanceAtTime(float timeSeconds)
+        {
+            if (SampleCount == 0) return 0f;
+            if (timeSeconds <= Time[0]) return Distance[0];
+            if (timeSeconds >= Time[^1]) return Distance[^1];
+
+            int index = Array.BinarySearch(Time, timeSeconds);
+            if (index >= 0) return Distance[index];
+
+            int next = ~index;
+            int prev = next - 1;
+            float span = Time[next] - Time[prev];
+            float t = span > 0 ? (timeSeconds - Time[prev]) / span : 0f;
+            return Distance[prev] + t * (Distance[next] - Distance[prev]);
+        }
+
         // Returns reference elapsed time at a specific track distance in seconds.
         public float GetTimeAtDistance(float distanceMeters, bool interpolate = true)
         {

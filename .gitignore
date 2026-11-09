@@ -8,3 +8,6 @@ __pycache__/
 # .NET build output
 bin/
 obj/
+
+# Personal laps (imported or recorded in the Workbench)
+references/My Laps/

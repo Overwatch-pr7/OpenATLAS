@@ -30,6 +30,9 @@ namespace OpenATLAS.Workbench.Plotting
         /// <summary>Pinned distances in the order they were placed.</summary>
         public IReadOnlyList<double> Pins => _pins;
 
+        /// <summary>Distance under the mouse while it is over a trace pane, else null.</summary>
+        public double? HoverDistance => _hoverDistance;
+
         /// <summary>True while the mouse has snapped onto a pin (a click would remove it).</summary>
         public bool IsHoverOnPin => _hoverDistance is double hover && _pins.Contains(hover);
 
