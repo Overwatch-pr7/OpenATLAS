@@ -119,7 +119,7 @@ namespace OpenATLAS.Tests.Workbench
         }
 
         [Fact]
-        public void Click_PinsCursor_ThatStaysAfterLeaving()
+        public void Click_DropsPin_ThatStaysAfterLeaving()
         {
             var (temp, vm, panes, cursor) = Create();
             using (temp) using (vm)
@@ -128,33 +128,98 @@ namespace OpenATLAS.Tests.Workbench
                 cursor.Click(1200);
                 cursor.Leave();
 
-                Assert.True(cursor.IsPinned);
-                Assert.True(panes.IsCursorVisible);
-                Assert.Equal(1200, panes.CursorDistance);
+                Assert.Equal([1200.0], cursor.Pins);
+                Assert.Equal(1, panes.PinCount);
+                Assert.False(panes.IsCursorVisible); // dashed hover line is gone, the pin draws its own
                 Assert.Equal("@ 1,200 m PINNED", vm.Cursor.DistanceText);
             }
         }
 
         [Fact]
-        public void HoveringElsewhere_WhilePinned_FollowsMouse_ThenReturnsToPin()
+        public void HoveringElsewhere_FollowsMouse_ThenReadoutReturnsToPin()
         {
             var (temp, vm, panes, cursor) = Create();
             using (temp) using (vm)
             {
                 cursor.Click(1200);
 
-                cursor.Hover(2500);
+                cursor.Hover(2500, snapRadiusMeters: 20);
                 Assert.Equal(2500, panes.CursorDistance);
                 Assert.False(vm.Cursor.IsPinned);
 
                 cursor.Leave();
-                Assert.Equal(1200, panes.CursorDistance);
-                Assert.True(vm.Cursor.IsPinned);
+                Assert.Equal("@ 1,200 m PINNED", vm.Cursor.DistanceText);
             }
         }
 
         [Fact]
-        public void SecondClick_ReleasesPin()
+        public void Hover_NearPin_SnapsOntoIt()
+        {
+            var (temp, vm, panes, cursor) = Create();
+            using (temp) using (vm)
+            {
+                cursor.Click(1000);
+
+                cursor.Hover(1015, snapRadiusMeters: 20);
+                Assert.True(cursor.IsHoverOnPin);
+                Assert.Equal(1000, panes.CursorDistance);
+                Assert.Equal("@ 1,000 m PINNED", vm.Cursor.DistanceText);
+
+                cursor.Hover(1050, snapRadiusMeters: 20);
+                Assert.False(cursor.IsHoverOnPin);
+                Assert.Equal(1050, panes.CursorDistance);
+            }
+        }
+
+        [Fact]
+        public void Hover_SnapsToTheNearestOfTwoPins()
+        {
+            var (temp, vm, panes, cursor) = Create();
+            using (temp) using (vm)
+            {
+                cursor.Click(1000);
+                cursor.Click(1030);
+
+                cursor.Hover(1022, snapRadiusMeters: 50);
+
+                Assert.Equal(1030, panes.CursorDistance);
+            }
+        }
+
+        [Fact]
+        public void MultiplePins_ReadoutShowsTheLatestWhenMouseIsAway()
+        {
+            var (temp, vm, panes, cursor) = Create();
+            using (temp) using (vm)
+            {
+                cursor.Click(1000);
+                cursor.Click(2000);
+                cursor.Leave();
+
+                Assert.Equal([1000.0, 2000.0], cursor.Pins);
+                Assert.Equal(2, panes.PinCount);
+                Assert.Equal("@ 2,000 m PINNED", vm.Cursor.DistanceText);
+            }
+        }
+
+        [Fact]
+        public void ClickingSnappedPin_RemovesOnlyThatPin()
+        {
+            var (temp, vm, panes, cursor) = Create();
+            using (temp) using (vm)
+            {
+                cursor.Click(1000);
+                cursor.Click(2000);
+
+                cursor.Click(1010, snapRadiusMeters: 20);
+
+                Assert.Equal([2000.0], cursor.Pins);
+                Assert.Equal(1, panes.PinCount);
+            }
+        }
+
+        [Fact]
+        public void ClickingExactPin_WithoutSnapRadius_RemovesIt()
         {
             var (temp, vm, panes, cursor) = Create();
             using (temp) using (vm)
@@ -163,24 +228,62 @@ namespace OpenATLAS.Tests.Workbench
                 cursor.Click(1200);
                 cursor.Leave();
 
-                Assert.False(cursor.IsPinned);
-                Assert.False(panes.IsCursorVisible);
+                Assert.Empty(cursor.Pins);
+                Assert.Equal(0, panes.PinCount);
+                Assert.False(vm.Cursor.IsVisible);
             }
         }
 
         [Fact]
-        public void PinnedReadout_UpdatesAsLiveDataArrives()
+        public void PinDots_SitOnTheLiveTraces()
+        {
+            var (temp, vm, panes, cursor) = Create();
+            using (temp) using (vm)
+            {
+                panes.UpdateLive(Lap);
+
+                cursor.Click(150);
+
+                Coordinates[] dots = panes.GetPinDots(0);
+                Assert.Equal(new Coordinates(150, 210), dots[0]);           // live speed
+                Assert.Equal(75, dots[1].Y, 3);                              // live throttle
+                Assert.Equal(-0.05, dots[2].Y, 3);                           // live delta
+            }
+        }
+
+        [Fact]
+        public void PinDots_FallBackToReference_WhereTheCarHasNotBeen()
+        {
+            var (temp, vm, panes, cursor) = Create();
+            using (temp) using (vm)
+            {
+                panes.UpdateLive(Lap);
+
+                cursor.Click(3000);
+
+                var reference = vm.ReferenceLap!.GetSampleAtDistance(3000f);
+                Coordinates[] dots = panes.GetPinDots(0);
+                Assert.Equal(reference.SpeedKmh, dots[0].Y, 3);
+                Assert.Equal(reference.Throttle, dots[1].Y, 3);
+                Assert.Equal(0, dots[2].Y);                                  // no live delta yet
+            }
+        }
+
+        [Fact]
+        public void PinnedReadoutAndDot_UpdateAsLiveDataArrives()
         {
             var (temp, vm, panes, cursor) = Create();
             using (temp) using (vm)
             {
                 cursor.Click(250);
+                cursor.Leave();
                 Assert.Equal("LIVE --", vm.Cursor.LiveSpeedText);
 
-                panes.UpdateLive(Lap);   // the car drives past the pinned distance
+                panes.UpdateLive(Lap);   // the car drives past the pin
                 cursor.Refresh();         // done every frame by MainWindow.RefreshPlots
 
                 Assert.Equal("LIVE 230.0", vm.Cursor.LiveSpeedText);
+                Assert.Equal(230, panes.GetPinDots(0)[0].Y, 3);
             }
         }
 
@@ -199,19 +302,52 @@ namespace OpenATLAS.Tests.Workbench
         }
 
         [Fact]
-        public void Clear_RemovesPinnedCursor()
+        public void Clear_RemovesEveryPin()
         {
             var (temp, vm, panes, cursor) = Create();
             using (temp) using (vm)
             {
-                cursor.Click(1200);
+                cursor.Click(1000);
+                cursor.Click(2000);
 
                 cursor.Clear();
 
-                Assert.False(cursor.IsPinned);
+                Assert.Empty(cursor.Pins);
+                Assert.Equal(0, panes.PinCount);
                 Assert.False(panes.IsCursorVisible);
                 Assert.False(vm.Cursor.IsVisible);
             }
+        }
+
+        [Fact]
+        public void Render_WithPinsAndHoverCursor_DrawsWithoutErrors()
+        {
+            var (temp, vm, panes, cursor) = Create();
+            using (temp) using (vm)
+            {
+                panes.UpdateLive(Lap);
+                cursor.Click(150);
+                cursor.Click(3000);
+                cursor.Hover(1200);
+
+                foreach (var plot in new[] { panes.SpeedPlot, panes.PedalPlot, panes.DeltaPlot })
+                {
+                    Assert.Equal(600, plot.GetImage(600, 200).Width);
+                }
+            }
+        }
+
+        [Fact]
+        public void ResetLap_RaisesLapReset_SoTheWindowCanClearPins()
+        {
+            using var temp = new TempReferenceLibrary("2021/Italian Grand Prix/HAM");
+            using var vm = new WorkbenchViewModel(library: temp.Library);
+            int resets = 0;
+            vm.LapReset += () => resets++;
+
+            vm.ResetLap();
+
+            Assert.Equal(1, resets);
         }
     }
 }

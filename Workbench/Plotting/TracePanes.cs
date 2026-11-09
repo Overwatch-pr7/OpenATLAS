@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using OpenATLAS.Core.Models;
 using OpenATLAS.Core.Reference;
 using ScottPlot;
@@ -23,6 +25,7 @@ namespace OpenATLAS.Workbench.Plotting
         private static readonly Color ThrottleColor = Color.FromHex("#00E676");
         private static readonly Color BrakeColor = Color.FromHex("#FF5252");
         private static readonly Color CursorColor = Color.FromHex("#D4D4D4");
+        private static readonly Color PinColor = Color.FromHex("#FF5252");
 
         private readonly double[] _liveDistance;
         private readonly double[] _liveSpeed;
@@ -41,6 +44,12 @@ namespace OpenATLAS.Workbench.Plotting
 
         // Distance cursor: one vertical line per pane, always at the same distance
         private readonly VerticalLine[] _cursorLines;
+
+        // Pinned cursors: per pin, a solid line and a red dot on the trace in each pane
+        private readonly List<(VerticalLine[] Lines, Marker[] Dots)> _pins = [];
+
+        // Kept for placing pin dots where the car has no live data yet
+        private ReferenceLapIndex? _referenceLap;
 
         public Plot SpeedPlot { get; }
         public Plot PedalPlot { get; }
@@ -93,6 +102,7 @@ namespace OpenATLAS.Workbench.Plotting
         public void LoadReference(ReferenceLapIndex lap)
         {
             ArgumentNullException.ThrowIfNull(lap);
+            _referenceLap = lap;
 
             if (_refSpeedLine != null) SpeedPlot.Remove(_refSpeedLine);
             if (_refThrottleLine != null) PedalPlot.Remove(_refThrottleLine);
@@ -219,6 +229,53 @@ namespace OpenATLAS.Workbench.Plotting
         public bool IsCursorVisible => _cursorLines[0].IsVisible;
         public double CursorDistance => _cursorLines[0].X;
 
+        public int PinCount => _pins.Count;
+
+        /// <summary>
+        /// Draws one solid line plus a red dot per pin on every pane. The dot sits on the live
+        /// trace (speed, throttle, delta) where the car has reached the pin, else on the reference.
+        /// Plottables are only created/removed when the number of pins changes; positions are
+        /// updated every call, so dots follow the live trace as it arrives.
+        /// </summary>
+        public void SetPins(IReadOnlyList<double> distances)
+        {
+            while (_pins.Count > distances.Count)
+            {
+                var (lines, dots) = _pins[^1];
+                Plot[] plots = [SpeedPlot, PedalPlot, DeltaPlot];
+                for (int p = 0; p < plots.Length; p++)
+                {
+                    plots[p].Remove(lines[p]);
+                    plots[p].Remove(dots[p]);
+                }
+                _pins.RemoveAt(_pins.Count - 1);
+            }
+
+            while (_pins.Count < distances.Count)
+            {
+                _pins.Add((
+                    [AddPinLine(SpeedPlot), AddPinLine(PedalPlot), AddPinLine(DeltaPlot)],
+                    [AddPinDot(SpeedPlot), AddPinDot(PedalPlot), AddPinDot(DeltaPlot)]));
+            }
+
+            for (int i = 0; i < distances.Count; i++)
+            {
+                double x = distances[i];
+                var (lines, dots) = _pins[i];
+                foreach (VerticalLine line in lines) line.X = x;
+
+                bool hasLive = TryGetLiveAt(x, out LiveCursorSample live);
+                ReferenceSample? reference = _referenceLap?.GetSampleAtDistance((float)x);
+
+                dots[0].Location = new Coordinates(x, hasLive ? live.Speed : reference?.SpeedKmh ?? 0);
+                dots[1].Location = new Coordinates(x, hasLive ? live.Throttle : reference?.Throttle ?? 0);
+                dots[2].Location = new Coordinates(x, hasLive ? live.DeltaSeconds : 0);
+            }
+        }
+
+        /// <summary>Pin dot positions on each pane (speed, pedals, delta), for tests.</summary>
+        public Coordinates[] GetPinDots(int pin) => [.. _pins[pin].Dots.Select(d => d.Location)];
+
         public int LiveCount { get; private set; }
 
         private void SetLiveCount(int count)
@@ -245,6 +302,18 @@ namespace OpenATLAS.Workbench.Plotting
             line.IsVisible = false;
             line.MaxRenderIndex = 0;
             return line;
+        }
+
+        private static VerticalLine AddPinLine(Plot plot)
+        {
+            var line = plot.Add.VerticalLine(0, width: 1, color: CursorColor);
+            line.LabelText = string.Empty;
+            return line;
+        }
+
+        private static Marker AddPinDot(Plot plot)
+        {
+            return plot.Add.Marker(0, 0, MarkerShape.FilledCircle, size: 9, color: PinColor);
         }
 
         private static VerticalLine AddCursorLine(Plot plot)

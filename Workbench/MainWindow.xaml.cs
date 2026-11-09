@@ -25,6 +25,9 @@ namespace OpenATLAS.Workbench
         private Point _mouseDownPosition;
         private const double ClickTolerancePixels = 4;
 
+        // How close (in screen pixels) the mouse must be to a pin for the cursor to snap onto it
+        private const double SnapRadiusPixels = 10;
+
         public MainWindow()
         {
             InitializeComponent();
@@ -61,6 +64,7 @@ namespace OpenATLAS.Workbench
             }
 
             _viewModel.ReferenceLapChanged += OnReferenceLapChanged;
+            _viewModel.LapReset += OnLapReset;
 
             SpeedPlot.Plot.Axes.Link(PedalPlot, x: true, y: false);
             SpeedPlot.Plot.Axes.Link(DeltaPlot, x: true, y: false);
@@ -99,6 +103,12 @@ namespace OpenATLAS.Workbench
             RefreshPlots();
         }
 
+        private void OnLapReset()
+        {
+            _cursor.Clear(); // pins belong to the lap that was just reset
+            RefreshPlots();
+        }
+
         private void RefreshPlots()
         {
             // Keeps a pinned cursor's live readout current as new samples arrive
@@ -115,12 +125,15 @@ namespace OpenATLAS.Workbench
             var plot = (WpfPlot)sender;
             if (TryGetDistance(plot, e, out double distance))
             {
-                _cursor.Hover(distance);
+                _cursor.Hover(distance, SnapRadiusMeters(plot));
             }
             else
             {
                 _cursor.Leave(); // over the axes or labels, not the data area
             }
+
+            // Hand pointer while snapped onto a pin: a click will remove it
+            plot.Cursor = _cursor.IsHoverOnPin ? Cursors.Hand : null;
             RefreshPlots();
         }
 
@@ -136,15 +149,28 @@ namespace OpenATLAS.Workbench
 
             if (TryGetDistance(plot, e, out double distance))
             {
-                _cursor.Click(distance);
+                _cursor.Click(distance, SnapRadiusMeters(plot));
+                plot.Cursor = _cursor.IsHoverOnPin ? Cursors.Hand : null;
                 RefreshPlots();
             }
         }
 
         private void OnPlotMouseLeave(object sender, MouseEventArgs e)
         {
+            ((WpfPlot)sender).Cursor = null;
             _cursor.Leave();
             RefreshPlots();
+        }
+
+        // Snap radius in metres at the current zoom: the plot's visible distance per screen pixel
+        private static double SnapRadiusMeters(WpfPlot plot)
+        {
+            AxisLimits limits = plot.Plot.Axes.GetLimits();
+            double dataWidthPixels = plot.Plot.LastRender.DataRect.Width; // physical pixels
+            if (dataWidthPixels <= 0) return 0;
+
+            double metersPerPixel = (limits.Right - limits.Left) / dataWidthPixels;
+            return SnapRadiusPixels * plot.DisplayScale * metersPerPixel;
         }
 
         // Converts the mouse position to a track distance; false when outside the plot's data area
@@ -169,6 +195,7 @@ namespace OpenATLAS.Workbench
             base.OnClosing(e);
             _renderLoop.Dispose();
             _viewModel.ReferenceLapChanged -= OnReferenceLapChanged;
+            _viewModel.LapReset -= OnLapReset;
             _viewModel.Dispose();
         }
     }

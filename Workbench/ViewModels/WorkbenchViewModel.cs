@@ -149,6 +149,12 @@ namespace OpenATLAS.Workbench.ViewModels
         /// </summary>
         public event Action? ReferenceLapChanged;
 
+        /// <summary>
+        /// Raised after RESET LAP (and any other lap reset) has cleared the live data,
+        /// so the view can drop anything tied to the old lap, such as cursor pins.
+        /// </summary>
+        public event Action? LapReset;
+
         /// <param name="referenceLap">Optional pre-loaded lap (skips auto-selecting from the library).</param>
         /// <param name="library">Reference library; when null the 'references' folder is searched for.</param>
         public WorkbenchViewModel(ReferenceLapIndex? referenceLap = null, ReferenceLibrary? library = null)
@@ -885,6 +891,8 @@ namespace OpenATLAS.Workbench.ViewModels
             BufferCount = 0;
 
             StatusMessage = "Telemetry and delta counters reset to zero.";
+
+            LapReset?.Invoke();
         }
 
         #endregion

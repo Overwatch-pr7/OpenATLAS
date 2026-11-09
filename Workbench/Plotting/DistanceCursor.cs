@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using OpenATLAS.Core.Reference;
 using OpenATLAS.Workbench.ViewModels;
 
@@ -6,18 +7,19 @@ namespace OpenATLAS.Workbench.Plotting
 {
     /// <summary>
     /// Distance cursor shared by the three trace panes (as in ATLAS / MoTeC).
-    /// Hovering shows a dashed line that follows the mouse; a click pins it (solid line)
-    /// so it stays put while the lap keeps playing; clicking again releases it.
-    /// The header readouts show live vs reference values at the cursor's distance.
-    /// Read-only: it never changes the recorded data.
+    /// Hovering shows a dashed line that follows the mouse. A click drops a pin (solid line
+    /// with a red dot on the trace) that stays put while the lap keeps playing. Near a pin the
+    /// cursor snaps onto it, so pins are easy to find again; clicking a snapped pin removes it.
+    /// The header readouts show live vs reference values at the hovered distance, or at the
+    /// most recent pin when the mouse is away. Read-only: it never changes the recorded data.
     /// </summary>
     public sealed class DistanceCursor
     {
         private readonly TracePanes _panes;
         private readonly WorkbenchViewModel _viewModel;
 
+        private readonly List<double> _pins = [];
         private double? _hoverDistance;
-        private double? _pinnedDistance;
 
         public DistanceCursor(TracePanes panes, WorkbenchViewModel viewModel)
         {
@@ -25,45 +27,67 @@ namespace OpenATLAS.Workbench.Plotting
             _viewModel = viewModel ?? throw new ArgumentNullException(nameof(viewModel));
         }
 
-        public bool IsPinned => _pinnedDistance.HasValue;
+        /// <summary>Pinned distances in the order they were placed.</summary>
+        public IReadOnlyList<double> Pins => _pins;
 
-        /// <summary>Distance the cursor is showing: the mouse position while hovering, else the pin.</summary>
-        public double? ActiveDistance => _hoverDistance ?? _pinnedDistance;
+        /// <summary>True while the mouse has snapped onto a pin (a click would remove it).</summary>
+        public bool IsHoverOnPin => _hoverDistance is double hover && _pins.Contains(hover);
 
-        public void Hover(double distanceMeters)
+        /// <summary>Distance shown in the readout: the mouse while hovering, else the latest pin.</summary>
+        public double? ActiveDistance => _hoverDistance ?? (_pins.Count > 0 ? _pins[^1] : null);
+
+        /// <param name="snapRadiusMeters">A pin closer than this captures the cursor.</param>
+        public void Hover(double distanceMeters, double snapRadiusMeters = 0)
         {
-            _hoverDistance = Clamp(distanceMeters);
+            double distance = Clamp(distanceMeters);
+            int pin = NearestPin(distance, snapRadiusMeters);
+            _hoverDistance = pin >= 0 ? _pins[pin] : distance;
             Refresh();
         }
 
-        /// <summary>Mouse left the plots: fall back to the pinned position, or hide.</summary>
+        /// <summary>Mouse left the plots: only the pins remain.</summary>
         public void Leave()
         {
             _hoverDistance = null;
             Refresh();
         }
 
-        /// <summary>Pins the cursor at the distance, or releases it if it is already pinned.</summary>
-        public void Click(double distanceMeters)
+        /// <summary>Removes the pin under the cursor (within the snap radius), or drops a new one.</summary>
+        public void Click(double distanceMeters, double snapRadiusMeters = 0)
         {
-            _pinnedDistance = _pinnedDistance.HasValue ? null : Clamp(distanceMeters);
+            double distance = Clamp(distanceMeters);
+            int pin = NearestPin(distance, snapRadiusMeters);
+
+            if (pin >= 0)
+            {
+                _pins.RemoveAt(pin);
+                _hoverDistance = distance; // keep following the mouse, now unsnapped
+            }
+            else
+            {
+                _pins.Add(distance);
+                _hoverDistance = distance; // the cursor now sits on the new pin
+            }
+
             Refresh();
         }
 
-        /// <summary>Removes the cursor entirely (e.g. a different reference lap was loaded).</summary>
+        /// <summary>Removes the cursor and every pin (lap reset or a different reference lap).</summary>
         public void Clear()
         {
             _hoverDistance = null;
-            _pinnedDistance = null;
+            _pins.Clear();
             Refresh();
         }
 
         /// <summary>
-        /// Repositions the line and recomputes the readout. Called on every redraw so a
-        /// pinned cursor's live values update as the lap progresses.
+        /// Repositions the lines and dots and recomputes the readout. Called on every redraw
+        /// so pin dots and readouts follow the live trace as the lap progresses.
         /// </summary>
         public void Refresh()
         {
+            _panes.SetPins(_pins);
+
             ReferenceLapIndex? lap = _viewModel.ReferenceLap;
             if (ActiveDistance is not double distance || lap == null)
             {
@@ -72,13 +96,30 @@ namespace OpenATLAS.Workbench.Plotting
                 return;
             }
 
-            // Solid only when the line is actually sitting on the pin
-            bool showingPin = _pinnedDistance.HasValue &&
-                (_hoverDistance == null || Math.Abs(_hoverDistance.Value - _pinnedDistance.Value) < 0.5);
+            bool onPin = _pins.Contains(distance);
 
-            _panes.ShowCursor(distance, showingPin);
+            // The dashed hover line only exists while the mouse is over a plot; pins draw their own lines
+            if (_hoverDistance.HasValue) _panes.ShowCursor(distance, onPin);
+            else _panes.HideCursor();
+
             LiveCursorSample? live = _panes.TryGetLiveAt(distance, out LiveCursorSample sample) ? sample : null;
-            _viewModel.Cursor.Show(distance, showingPin, lap.GetSampleAtDistance((float)distance), live);
+            _viewModel.Cursor.Show(distance, onPin, lap.GetSampleAtDistance((float)distance), live);
+        }
+
+        private int NearestPin(double distance, double radius)
+        {
+            int nearest = -1;
+            double best = double.MaxValue;
+            for (int i = 0; i < _pins.Count; i++)
+            {
+                double gap = Math.Abs(_pins[i] - distance);
+                if (gap <= radius && gap < best)
+                {
+                    best = gap;
+                    nearest = i;
+                }
+            }
+            return nearest;
         }
 
         private double Clamp(double distanceMeters)
