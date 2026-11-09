@@ -49,10 +49,12 @@ namespace OpenATLAS.Tests.Workbench
 
             Assert.Equal(0, panes.LiveCount);
             Assert.Equal(100, panes.LiveCapacity);
+            // Every pane has a hidden distance cursor line, plus:
             // Speed: 1 live line; Pedals: throttle + brake; Delta: zero line + live line
-            Assert.Single(panes.SpeedPlot.GetPlottables());
-            Assert.Equal(2, panes.PedalPlot.GetPlottables().Count());
-            Assert.Equal(2, panes.DeltaPlot.GetPlottables().Count());
+            Assert.Equal(2, panes.SpeedPlot.GetPlottables().Count());
+            Assert.Equal(3, panes.PedalPlot.GetPlottables().Count());
+            Assert.Equal(3, panes.DeltaPlot.GetPlottables().Count());
+            Assert.False(panes.IsCursorVisible);
         }
 
         [Fact]
@@ -63,8 +65,8 @@ namespace OpenATLAS.Tests.Workbench
 
             panes.LoadReference(lap);
 
-            Assert.Equal(2, panes.SpeedPlot.GetPlottables().Count());
-            Assert.Equal(4, panes.PedalPlot.GetPlottables().Count());
+            Assert.Equal(3, panes.SpeedPlot.GetPlottables().Count());
+            Assert.Equal(5, panes.PedalPlot.GetPlottables().Count());
 
             foreach (var plot in new[] { panes.SpeedPlot, panes.PedalPlot, panes.DeltaPlot })
             {
@@ -82,8 +84,8 @@ namespace OpenATLAS.Tests.Workbench
             panes.LoadReference(CreateMockReferenceLap());
             panes.LoadReference(CreateMockReferenceLap(800));
 
-            Assert.Equal(2, panes.SpeedPlot.GetPlottables().Count());
-            Assert.Equal(4, panes.PedalPlot.GetPlottables().Count());
+            Assert.Equal(3, panes.SpeedPlot.GetPlottables().Count());
+            Assert.Equal(5, panes.PedalPlot.GetPlottables().Count());
         }
 
         [Fact]

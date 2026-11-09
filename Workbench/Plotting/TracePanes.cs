@@ -22,6 +22,7 @@ namespace OpenATLAS.Workbench.Plotting
         private static readonly Color ReferenceColor = Color.FromHex("#FFE600");
         private static readonly Color ThrottleColor = Color.FromHex("#00E676");
         private static readonly Color BrakeColor = Color.FromHex("#FF5252");
+        private static readonly Color CursorColor = Color.FromHex("#D4D4D4");
 
         private readonly double[] _liveDistance;
         private readonly double[] _liveSpeed;
@@ -37,6 +38,9 @@ namespace OpenATLAS.Workbench.Plotting
         private Scatter? _refSpeedLine;
         private Scatter? _refThrottleLine;
         private Scatter? _refBrakeLine;
+
+        // Distance cursor: one vertical line per pane, always at the same distance
+        private readonly VerticalLine[] _cursorLines;
 
         public Plot SpeedPlot { get; }
         public Plot PedalPlot { get; }
@@ -74,6 +78,8 @@ namespace OpenATLAS.Workbench.Plotting
             _liveThrottleLine = AddLiveLine(PedalPlot, _liveThrottle, ThrottleColor);
             _liveBrakeLine = AddLiveLine(PedalPlot, _liveBrake, BrakeColor);
             _liveDeltaLine = AddLiveLine(DeltaPlot, _liveDelta, LiveColor);
+
+            _cursorLines = [AddCursorLine(SpeedPlot), AddCursorLine(PedalPlot), AddCursorLine(DeltaPlot)];
 
             SpeedPlot.Axes.SetLimitsY(0, 360);
             PedalPlot.Axes.SetLimitsY(-5, 105);
@@ -115,6 +121,9 @@ namespace OpenATLAS.Workbench.Plotting
             SpeedPlot.MoveToTop(_liveSpeedLine);
             PedalPlot.MoveToTop(_liveThrottleLine);
             PedalPlot.MoveToTop(_liveBrakeLine);
+            SpeedPlot.MoveToTop(_cursorLines[0]);
+            PedalPlot.MoveToTop(_cursorLines[1]);
+            DeltaPlot.MoveToTop(_cursorLines[2]);
 
             SetDistanceLimits(0, lap.TrackLengthMeters);
         }
@@ -154,6 +163,62 @@ namespace OpenATLAS.Workbench.Plotting
 
         public void ClearLive() => SetLiveCount(0);
 
+        /// <summary>
+        /// Live values at a distance, interpolated between the two nearest live samples.
+        /// False when the current lap has not reached that distance (or has no samples).
+        /// </summary>
+        public bool TryGetLiveAt(double distanceMeters, out LiveCursorSample sample)
+        {
+            sample = default;
+            int count = LiveCount;
+            if (count == 0 || distanceMeters < _liveDistance[0] || distanceMeters > _liveDistance[count - 1])
+            {
+                return false;
+            }
+
+            // Distances only increase within a lap (UpdateLive cuts at the line), so binary search applies
+            int index = Array.BinarySearch(_liveDistance, 0, count, distanceMeters);
+            if (index >= 0)
+            {
+                sample = new LiveCursorSample(_liveSpeed[index], _liveThrottle[index], _liveBrake[index], _liveDelta[index]);
+                return true;
+            }
+
+            int next = ~index;
+            int prev = next - 1;
+            double span = _liveDistance[next] - _liveDistance[prev];
+            double t = span > 0 ? (distanceMeters - _liveDistance[prev]) / span : 0;
+
+            sample = new LiveCursorSample(
+                Lerp(_liveSpeed, prev, next, t),
+                Lerp(_liveThrottle, prev, next, t),
+                Lerp(_liveBrake, prev, next, t),
+                Lerp(_liveDelta, prev, next, t));
+            return true;
+        }
+
+        /// <summary>
+        /// Shows the cursor line at the same distance on all three panes.
+        /// Solid when pinned, dashed while it just follows the mouse.
+        /// </summary>
+        public void ShowCursor(double distanceMeters, bool pinned)
+        {
+            foreach (VerticalLine line in _cursorLines)
+            {
+                line.X = distanceMeters;
+                line.LinePattern = pinned ? LinePattern.Solid : LinePattern.Dashed;
+                line.IsVisible = true;
+            }
+        }
+
+        public void HideCursor()
+        {
+            foreach (VerticalLine line in _cursorLines) line.IsVisible = false;
+        }
+
+        public bool IsCursorVisible => _cursorLines[0].IsVisible;
+        public double CursorDistance => _cursorLines[0].X;
+
         public int LiveCount { get; private set; }
 
         private void SetLiveCount(int count)
@@ -182,6 +247,16 @@ namespace OpenATLAS.Workbench.Plotting
             return line;
         }
 
+        private static VerticalLine AddCursorLine(Plot plot)
+        {
+            var line = plot.Add.VerticalLine(0, width: 1, color: CursorColor);
+            line.LabelText = string.Empty;
+            line.IsVisible = false;
+            return line;
+        }
+
+        private static double Lerp(double[] values, int a, int b, double t) => values[a] + (values[b] - values[a]) * t;
+
         private static Scatter AddReferenceLine(Plot plot, double[] xs, double[] ys, Color color)
         {
             var line = plot.Add.ScatterLine(xs, ys, color);
@@ -207,4 +282,7 @@ namespace OpenATLAS.Workbench.Plotting
             plot.Axes.Left.MaximumSize = 50;
         }
     }
+
+    /// <summary>Live channel values at the cursor distance.</summary>
+    public readonly record struct LiveCursorSample(double Speed, double Throttle, double Brake, double DeltaSeconds);
 }

@@ -44,6 +44,15 @@ namespace OpenATLAS.Workbench.ViewModels
         private bool _isLiveConnected;
         private bool _isSimulating;
 
+        // Set from the UI thread, read by the simulation task every tick
+        private volatile bool _isSimulationPaused;
+
+        // Bottom status bar "SOURCE:" text: where the live data currently comes from
+        public const string SourceNone = "N/A";
+        public const string SourceSimulation = "SIMULATED REPLAY OF REFERENCE LAP";
+        public const string SourceAssettoCorsa = @"ASSETTO CORSA SHARED MEMORY (Local\acpmf_*)";
+        private string _dataSource = SourceNone;
+
         private string _referenceTrackName = "-";
         private string _referenceDriverName = "-";
         private string _referenceSession = "-";
@@ -113,6 +122,11 @@ namespace OpenATLAS.Workbench.ViewModels
         public ICommand StopSimulationCommand { get; }
 
         /// <summary>
+        /// Command to pause a running simulated lap, or resume it from exactly where it stopped.
+        /// </summary>
+        public ICommand PauseSimulationCommand { get; }
+
+        /// <summary>
         /// Command to reset current lap progress, distance, and delta accumulator back to start/finish line.
         /// </summary>
         public ICommand ResetLapCommand { get; }
@@ -123,6 +137,9 @@ namespace OpenATLAS.Workbench.ViewModels
         public ObservableCollection<SectorViewModel> Sectors { get; } = [];
 
         public bool HasSectors => Sectors.Count > 0;
+
+        /// <summary>Distance cursor readout shown in the trace pane headers.</summary>
+        public CursorReadoutViewModel Cursor { get; } = new();
         public ReferenceLapIndex? ReferenceLap => _referenceLap;
         public LiveDeltaEngine? DeltaEngine => _deltaEngine;
         public ReferenceLibrary? Library => _library;
@@ -144,6 +161,7 @@ namespace OpenATLAS.Workbench.ViewModels
             DisconnectLiveCommand = new RelayCommand(StopLiveIngestion, () => IsLiveConnected);
             StartSimulationCommand = new RelayCommand(StartSimulationReplay, () => !IsLiveConnected && !IsSimulating);
             StopSimulationCommand = new RelayCommand(StopSimulationReplay, () => IsSimulating);
+            PauseSimulationCommand = new RelayCommand(TogglePauseSimulation, () => IsSimulating);
             ResetLapCommand = new RelayCommand(ResetLap);
 
             AvailableYears = _library?.GetYears() ?? [];
@@ -204,6 +222,23 @@ namespace OpenATLAS.Workbench.ViewModels
         }
 
         public bool CanToggleLive => !IsSimulating;
+
+        public bool IsSimulationPaused
+        {
+            get => _isSimulationPaused;
+            private set
+            {
+                if (_isSimulationPaused == value) return;
+                _isSimulationPaused = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public string DataSource
+        {
+            get => _dataSource;
+            private set => SetProperty(ref _dataSource, value);
+        }
 
         // The reference is locked while a stream is running so the delta engine is never swapped mid-lap
         public bool CanChangeReference => !IsLiveConnected && !IsSimulating;
@@ -671,6 +706,7 @@ namespace OpenATLAS.Workbench.ViewModels
             RunOnUiThread(() =>
             {
                 ConnectionStatus = "LIVE AC (60Hz)";
+                DataSource = SourceAssettoCorsa;
                 StatusMessage = "Connected to Assetto Corsa shared memory.";
             });
         }
@@ -718,6 +754,7 @@ namespace OpenATLAS.Workbench.ViewModels
 
             IsLiveConnected = false;
             ConnectionStatus = "STANDBY";
+            DataSource = SourceNone;
             StatusMessage = "Live stream disconnected.";
         }
 
@@ -738,8 +775,10 @@ namespace OpenATLAS.Workbench.ViewModels
             _simulationCts = new CancellationTokenSource();
             CancellationToken token = _simulationCts.Token;
 
+            IsSimulationPaused = false;
             IsSimulating = true;
             ConnectionStatus = "SIMULATION REPLAY";
+            DataSource = SourceSimulation;
             StatusMessage = $"Running 60Hz simulated replay vs {ReferenceDriverName} ({ReferenceSession}) baseline...";
 
             _simulationTask = Task.Run(async () =>
@@ -750,6 +789,13 @@ namespace OpenATLAS.Workbench.ViewModels
 
                 while (!token.IsCancellationRequested && _referenceLap != null && _deltaEngine != null)
                 {
+                    // Paused: simulated time and distance stand still, so resuming continues seamlessly
+                    if (_isSimulationPaused)
+                    {
+                        await Task.Delay(16, token).ConfigureAwait(false);
+                        continue;
+                    }
+
                     ReferenceSample refSample = _referenceLap.GetSampleAtDistance(simDistance);
 
                     // Inject slight driver variation: slightly slower in S1, faster in S2
@@ -790,9 +836,22 @@ namespace OpenATLAS.Workbench.ViewModels
             if (!IsSimulating) return;
 
             _simulationCts?.Cancel();
+            IsSimulationPaused = false;
             IsSimulating = false;
             ConnectionStatus = "STANDBY";
+            DataSource = SourceNone;
             StatusMessage = "Simulation stopped.";
+        }
+
+        public void TogglePauseSimulation()
+        {
+            if (!IsSimulating) return;
+
+            IsSimulationPaused = !IsSimulationPaused;
+            ConnectionStatus = IsSimulationPaused ? "SIMULATION PAUSED" : "SIMULATION REPLAY";
+            StatusMessage = IsSimulationPaused
+                ? "Simulation paused. Click RESUME to continue from the same point."
+                : $"Running 60Hz simulated replay vs {ReferenceDriverName} ({ReferenceSession}) baseline...";
         }
 
         #endregion

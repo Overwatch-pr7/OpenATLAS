@@ -106,6 +106,21 @@
                             Command="{Binding StartSimulationCommand}"
                             Margin="0,0,6,0" />
 
+                    <!-- Pause / Resume Simulation Replay Button -->
+                    <Button Command="{Binding PauseSimulationCommand}"
+                            Margin="0,0,6,0">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource TracksideButton}">
+                                <Setter Property="Content" Value="PAUSE SIM" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsSimulationPaused}" Value="True">
+                                        <Setter Property="Content" Value="RESUME SIM" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+
                     <!-- Stop Simulation Replay Button -->
                     <Button Content="STOP SIM"
                             Style="{StaticResource TracksideButton}"
@@ -246,6 +261,18 @@
                                            Style="{StaticResource TelemetryLabelText}"
                                            Foreground="{StaticResource ForegroundHighlightBrush}" />
 
+                                <!-- Distance cursor readout (empty until the mouse is over a plot) -->
+                                <TextBlock Grid.Column="1"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"
+                                           FontFamily="{StaticResource TelemetryNumberFontFamily}"
+                                           FontSize="11"
+                                           FontWeight="SemiBold">
+                                    <Run Text="{Binding Cursor.DistanceText, Mode=OneWay}" Foreground="{StaticResource ForegroundHighlightBrush}" />
+                                    <Run Text="   " /><Run Text="{Binding Cursor.LiveSpeedText, Mode=OneWay}" Foreground="{StaticResource LiveTraceBrush}" />
+                                    <Run Text="   " /><Run Text="{Binding Cursor.RefSpeedText, Mode=OneWay}" Foreground="{StaticResource ReferenceTraceBrush}" />
+                                </TextBlock>
+
                                 <!-- Channel Legends -->
                                 <StackPanel Grid.Column="2" Orientation="Horizontal">
                                     <!-- Live Trace Legend -->
@@ -292,6 +319,18 @@
                                            Text="PEDAL INPUTS (% vs Distance)"
                                            Style="{StaticResource TelemetryLabelText}"
                                            Foreground="{StaticResource ForegroundHighlightBrush}" />
+
+                                <!-- Distance cursor readout (empty until the mouse is over a plot) -->
+                                <TextBlock Grid.Column="1"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"
+                                           FontFamily="{StaticResource TelemetryNumberFontFamily}"
+                                           FontSize="11"
+                                           FontWeight="SemiBold">
+                                    <Run Text="{Binding Cursor.DistanceText, Mode=OneWay}" Foreground="{StaticResource ForegroundHighlightBrush}" />
+                                    <Run Text="   " /><Run Text="{Binding Cursor.LivePedalText, Mode=OneWay}" Foreground="{StaticResource LiveTraceBrush}" />
+                                    <Run Text="   " /><Run Text="{Binding Cursor.RefPedalText, Mode=OneWay}" Foreground="{StaticResource ReferenceTraceBrush}" />
+                                </TextBlock>
 
                                 <!-- Channel Legends -->
                                 <StackPanel Grid.Column="2" Orientation="Horizontal">
@@ -340,6 +379,17 @@
                                            Text="DELTA TIME (Seconds vs Distance)"
                                            Style="{StaticResource TelemetryLabelText}"
                                            Foreground="{StaticResource ForegroundHighlightBrush}" />
+
+                                <!-- Distance cursor readout (empty until the mouse is over a plot) -->
+                                <TextBlock Grid.Column="1"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"
+                                           FontFamily="{StaticResource TelemetryNumberFontFamily}"
+                                           FontSize="11"
+                                           FontWeight="SemiBold">
+                                    <Run Text="{Binding Cursor.DistanceText, Mode=OneWay}" Foreground="{StaticResource ForegroundHighlightBrush}" />
+                                    <Run Text="   " /><Run Text="{Binding Cursor.DeltaText, Mode=OneWay}" Foreground="{StaticResource LiveTraceBrush}" />
+                                </TextBlock>
 
                                 <!-- Channel Legends -->
                                 <StackPanel Grid.Column="2" Orientation="Horizontal">
@@ -718,7 +768,7 @@
                 <!-- Ingestion Specification -->
                 <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
                     <TextBlock Text="SOURCE: " Style="{StaticResource TelemetryLabelText}" />
-                    <TextBlock Text="ASSETTO CORSA SHARED MEMORY (Local\acpmf_*) | CLOCK: 60Hz"
+                    <TextBlock Text="{Binding DataSource, StringFormat={}{0} | CLOCK: 60Hz}"
                                FontFamily="{StaticResource TelemetryNumberFontFamily}"
                                FontSize="11"
                                FontWeight="SemiBold"
