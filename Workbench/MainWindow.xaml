@@ -42,6 +42,8 @@
     <Window.CommandBindings>
         <!-- File > Import Lap (Ctrl+O) -->
         <CommandBinding Command="ApplicationCommands.Open" Executed="OnImportLap" />
+        <!-- File > Save Recorded Laps (Ctrl+S) -->
+        <CommandBinding Command="ApplicationCommands.Save" Executed="OnSaveRecordedLaps" CanExecute="CanSaveRecordedLaps" />
     </Window.CommandBindings>
 
     <Window.InputBindings>
@@ -76,6 +78,7 @@
             <Menu>
                 <MenuItem Header="_File">
                     <MenuItem Header="_Import Lap from CSV..." Command="ApplicationCommands.Open" />
+                    <MenuItem Header="_Save Recorded Laps..." Command="ApplicationCommands.Save" />
                     <MenuItem Header="Open _My Laps Folder" Click="OnOpenMyLapsFolder" />
                     <Separator />
                     <MenuItem Header="E_xit" InputGestureText="Alt+F4" Click="OnExit" />
@@ -86,11 +89,12 @@
                     <MenuItem Header="S_top" InputGestureText="Shift+F5" Command="{Binding StopRacer1Command}" />
                     <MenuItem Header="_Reset Lap" InputGestureText="Ctrl+R" Command="{Binding ResetLapCommand}" />
                     <Separator />
-                    <MenuItem Header="Record Live AC Laps to My Laps"
+                    <MenuItem Header="Record Live AC Laps"
                               IsCheckable="True"
                               IsChecked="{Binding IsRecordingLaps, Mode=TwoWay}" />
                 </MenuItem>
                 <MenuItem Header="_View">
+                    <MenuItem Header="_Floating Widget" InputGestureText="Ctrl+Shift+F12" Click="OnToggleOverlay" />
                     <MenuItem Header="_Track Map"
                               IsCheckable="True"
                               IsChecked="{Binding IsTrackMapVisible, Mode=TwoWay}" />
@@ -112,16 +116,15 @@
                 Padding="14,0">
             <Grid VerticalAlignment="Center">
                 <Grid.ColumnDefinitions>
-                    <!-- Brand & Workbench Name -->
-                    <ColumnDefinition Width="Auto" />
-                    <!-- Spacer -->
+                    <!-- Brand & Workbench Name: takes the leftover width, so on narrow windows it is
+                         clipped instead of the controls -->
                     <ColumnDefinition Width="*" />
                     <!-- Racer 1 Controls & Status Badge -->
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
                 <!-- Brand / Logo -->
-                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,24,0">
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,24,0" ClipToBounds="True">
                     <TextBlock Text="OPENATLAS"
                                FontFamily="{StaticResource SystemFontFamily}"
                                FontSize="14"
@@ -138,7 +141,7 @@
                 </StackPanel>
 
                 <!-- Racer 1 controls: act on the source chosen in the selection bar -->
-                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                     <Button Content="START"
                             Style="{StaticResource TracksidePrimaryButton}"
                             Command="{Binding StartRacer1Command}"
@@ -173,16 +176,15 @@
                             ToolTip="Clear the live traces, deltas and pins (Ctrl+R)"
                             Margin="0,0,6,0" />
 
-                    <!-- Saves every complete live AC lap to My Laps while on -->
+                    <!-- Captures every complete live AC lap while on; the count shows laps waiting to be saved -->
                     <Button Command="{Binding ToggleRecordingCommand}"
-                            ToolTip="Save every complete live AC lap to My Laps"
-                            Margin="0,0,12,0">
+                            Content="{Binding RecordButtonText}"
+                            ToolTip="Capture every complete live AC lap (line to line). Captured laps wait for SAVE."
+                            Margin="0,0,6,0">
                         <Button.Style>
                             <Style TargetType="Button" BasedOn="{StaticResource TracksideButton}">
-                                <Setter Property="Content" Value="REC OFF" />
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding IsRecordingLaps}" Value="True">
-                                        <Setter Property="Content" Value="REC ON" />
                                         <Setter Property="Foreground" Value="{StaticResource BrakeBrush}" />
                                         <Setter Property="BorderBrush" Value="{StaticResource BrakeBrush}" />
                                     </DataTrigger>
@@ -190,6 +192,12 @@
                             </Style>
                         </Button.Style>
                     </Button>
+
+                    <Button Content="SAVE"
+                            Style="{StaticResource TracksideButton}"
+                            Command="ApplicationCommands.Save"
+                            ToolTip="Save captured laps to My Laps (Ctrl+S)"
+                            Margin="0,0,12,0" />
 
                     <!-- Active Mode Badge -->
                     <Border Background="{StaticResource CanvasBackgroundBrush}"

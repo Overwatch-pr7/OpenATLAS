@@ -185,12 +185,27 @@ For now, if the simulator is not running, set **Racer 1 SOURCE** to `SIMULATION`
 
 Your laps are stored in `references/My Laps/<Grand Prix>/` (git-ignored) in the same format as the F1 laps, so they can be Racer 1 (`SAVED LAP`) or Racer 2 (`My Laps`). There are two ways to add them:
 
-- **Record while driving:** click **REC** (or Session > Record Live AC Laps). Every complete lap driven in Assetto Corsa is saved under the selected Grand Prix. Laps follow AC's own lap counter and clock; out-laps, partial laps and laps you join midway are skipped.
+- **Record while driving:** click **REC** (or Session > Record Live AC Laps). Every complete lap driven in Assetto Corsa, line to line, is captured and counted on the button (`REC ON (3)`); the status bar says when a lap is captured or why one was skipped (started mid-lap, pit lane, reset). Captured laps stay in memory until you press **SAVE** (File > Save Recorded Laps, Ctrl+S) to keep, name or discard them; closing the app with unsaved laps asks first. Laps follow AC's own lap counter and clock.
 - **Import a log:** **File > Import Lap from CSV** (Ctrl+O). Pick the file, check the detected columns, choose the lap (the fastest complete lap is preselected), the Grand Prix and a name.
 
 Base Assetto Corsa does not record telemetry itself; common tools that do are [Telemetrick](https://overtake.gg/downloads/telemetrick.73265) (CSV or MoTeC export), Sim Racing Telemetry (Export to CSV) and MoTeC i2 (File > Export > CSV). The importer needs a header row with a **speed** column and a **time** and/or **distance** column; throttle, brake, gear, RPM and lap number are optional. Units are read from the header (`Speed [km/h]`, `(m/s)`, `mph`) or a MoTeC units row, and 0-1 pedal values are scaled to 0-100 %. See **Help > Import File Format** for the full description.
 
 Imported and recorded laps are normalised like the reference laps: time and distance start at zero on the line and the lap is resampled to one sample per metre. When replayed against a reference, a lap is matched by fraction of the lap, so a sim track of slightly different length still lines up corner for corner.
+
+### Floating Widget (single-screen racing)
+
+**View > Floating Widget** (Ctrl+Shift+F12) opens a small always-on-top panel to keep over the game: live delta, speed vs reference, gear, lap time and REC status, with **START/STOP**, **REC** and **SAVE LAP** (saves the last captured lap under its suggested name). Drag it by its header.
+
+- It never takes focus from the game, so clicking it does not interrupt your driving inputs, and it is hidden from the taskbar and Alt+Tab.
+- Assetto Corsa must run in **borderless or windowed** mode; no window can be drawn over an exclusive fullscreen game.
+- Global hotkeys work while the game has focus (and can be mapped to wheel buttons with your wheel's software):
+
+| Hotkey | Action |
+|---|---|
+| Ctrl+Shift+F9 | Start / stop Racer 1 |
+| Ctrl+Shift+F10 | REC on / off |
+| Ctrl+Shift+F11 | Save the last captured lap |
+| Ctrl+Shift+F12 | Show / hide the widget |
 
 ---
 
@@ -215,6 +230,8 @@ OpenATLAS/
 |   |-- MainWindow.xaml          Main application window
 |   |-- ImportLapWindow.xaml     File > Import Lap dialog
 |   |-- InfoWindow.xaml          Help windows
+|   |-- SaveLapsWindow.xaml      File > Save Recorded Laps dialog
+|   |-- OverlayWindow.xaml       Floating widget shown over the game
 |-- ConsoleApp/                  Console harness and AC shared memory monitor (AcMonitor)
 |-- Tests/                       xUnit test suite
 |   |-- Data/                    Fixed reference lap used by the tests
@@ -252,6 +269,8 @@ OpenATLAS/
 | - | - | Track map: circuit outline in official orientation, sector highlighting, turn numbers, car / cursor / pin markers; per-track sizing and hide/show |
 | - | - | Menu bar (File / Session / View / Help) with keyboard shortcuts; START / PAUSE / STOP / RESET controls; data source indicator; scrollable sidebar |
 | - | - | Simulation and saved-lap replay with pause/resume |
+| - | - | REC captures complete laps in memory with reasons for skipped laps; SAVE dialog (save / save all / discard) and unsaved-lap prompt on exit |
+| - | - | Floating widget over the game (frosted glass, never takes focus) with live delta, speed, gear, lap time, REC status and controls; global hotkeys |
 
 ### Remaining
 
@@ -262,7 +281,6 @@ OpenATLAS/
 | - | - | In-game validation of live recording (REC) and of CSV import with real Telemetrick / Sim Racing Telemetry / MoTeC exports |
 | - | - | v1 release: self-contained Windows build and installer (e.g. Inno Setup), My Laps moved to the user's Documents folder (Program Files is read-only), version number and app icon |
 | - | - | Release decisions: code signing (Windows SmartScreen warning) and the terms for redistributing F1 timing data |
-| - | - | Always-on-top, click-through delta overlay for use while driving |
 | 5 | 5.1 | Head-up delta bar widget (large centered +/- seconds display with green/red coloring) |
 | 5 | 5.2 | Corner analysis table (per-corner splits: apex speed, braking point, throttle pickup); corner positions are already in `track.json` |
 | 5 | 5.3 | Export laps as `.csv` (Parquet saving is done) |

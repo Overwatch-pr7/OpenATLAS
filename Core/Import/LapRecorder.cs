@@ -26,12 +26,29 @@ namespace OpenATLAS.Core.Import
         /// Ends the current lap. Returns its samples when it was a complete lap, else null.
         /// Recording continues into the next lap either way.
         /// </summary>
-        public IReadOnlyList<RawLapSample>? FinishLap(double referenceLengthMeters)
+        public IReadOnlyList<RawLapSample>? FinishLap(double referenceLengthMeters) => FinishLap(referenceLengthMeters, out _);
+
+        /// <param name="rejectReason">Why the lap was not kept (for the status bar), or null when it was.</param>
+        public IReadOnlyList<RawLapSample>? FinishLap(double referenceLengthMeters, out string? rejectReason)
         {
             List<RawLapSample>? lap = null;
+            double covered = _samples.Count >= 2 ? CoveredMeters() : 0;
 
-            if (_samples.Count >= 10 && StartedAtTheLine() && CoveredMeters() >= referenceLengthMeters * MinLapShare)
+            if (_samples.Count < 10)
             {
+                rejectReason = "too few samples were recorded";
+            }
+            else if (!StartedAtTheLine())
+            {
+                rejectReason = "recording started partway round the lap";
+            }
+            else if (covered < referenceLengthMeters * MinLapShare)
+            {
+                rejectReason = $"only {covered:N0} m of {referenceLengthMeters:N0} m were driven (pit lane or reset?)";
+            }
+            else
+            {
+                rejectReason = null;
                 lap = [.. _samples];
             }
 

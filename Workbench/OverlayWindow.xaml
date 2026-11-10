@@ -1,0 +1,165 @@
+<Window x:Class="OpenATLAS.Workbench.OverlayWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="OpenATLAS Widget"
+        Width="300"
+        SizeToContent="Height"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        ResizeMode="NoResize"
+        Topmost="True"
+        ShowInTaskbar="False"
+        ShowActivated="False"
+        Background="Transparent"
+        Foreground="{StaticResource ForegroundPrimaryBrush}"
+        FontFamily="{StaticResource SystemFontFamily}">
+
+    <Window.Resources>
+        <Style x:Key="WidgetButton" TargetType="Button" BasedOn="{StaticResource TracksideButton}">
+            <Setter Property="Padding" Value="0,5" />
+            <Setter Property="FontSize" Value="10" />
+            <Setter Property="Focusable" Value="False" />
+        </Style>
+    </Window.Resources>
+
+    <!-- Background is ~35 % transparent so the track shows through; text and buttons stay fully opaque -->
+    <Border x:Name="Panel"
+            Background="#A61E1E1E"
+            BorderBrush="{StaticResource BorderBrush}"
+            BorderThickness="1"
+            Padding="12,8,12,10">
+        <StackPanel>
+            <!-- Header: drag to move -->
+            <Grid x:Name="DragArea" Background="Transparent" Cursor="SizeAll" Margin="0,0,0,6"
+                  MouseLeftButtonDown="OnDragAreaMouseDown"
+                  ToolTip="Drag to move">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="OPENATLAS" FontSize="10" FontWeight="Bold"
+                           Foreground="{StaticResource LiveTraceBrush}" VerticalAlignment="Center" />
+                <TextBlock Grid.Column="1" Text="{Binding ConnectionStatus}"
+                           FontFamily="{StaticResource TelemetryNumberFontFamily}" FontSize="10"
+                           Foreground="{StaticResource StatusStandbyBrush}"
+                           VerticalAlignment="Center" Margin="8,0" TextTrimming="CharacterEllipsis" />
+                <Button Grid.Column="2" Content="HIDE" Style="{StaticResource WidgetButton}" Padding="8,1"
+                        Click="OnHide" ToolTip="Hide the widget (Ctrl+Shift+F12)" />
+            </Grid>
+
+            <!-- Live delta -->
+            <Grid>
+                <TextBlock Text="{Binding DeltaDisplayString}"
+                           FontFamily="{StaticResource TelemetryNumberFontFamily}"
+                           FontSize="34" FontWeight="Bold" HorizontalAlignment="Left">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Foreground" Value="{StaticResource DeltaAheadBrush}" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsAheadOfReference}" Value="False">
+                                    <Setter Property="Foreground" Value="{StaticResource DeltaBehindBrush}" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+                <TextBlock Text="{Binding DeltaStatusString}"
+                           FontFamily="{StaticResource TelemetryNumberFontFamily}" FontSize="11" FontWeight="Bold"
+                           Foreground="{StaticResource ForegroundHighlightBrush}"
+                           HorizontalAlignment="Right" VerticalAlignment="Center" />
+            </Grid>
+
+            <!-- Speed vs reference, gear -->
+            <Grid Margin="0,4,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel>
+                    <TextBlock Text="SPEED" Style="{StaticResource TelemetryLabelText}" />
+                    <TextBlock Text="{Binding CurrentSimSpeedKmh, StringFormat={}{0:F0}}"
+                               Style="{StaticResource TelemetryValueText}" FontSize="18"
+                               Foreground="{StaticResource LiveTraceBrush}" />
+                </StackPanel>
+                <StackPanel Grid.Column="1">
+                    <TextBlock Text="REF" Style="{StaticResource TelemetryLabelText}" />
+                    <TextBlock Text="{Binding CurrentRefSpeedKmh, StringFormat={}{0:F0}}"
+                               Style="{StaticResource TelemetryValueText}" FontSize="18"
+                               Foreground="{StaticResource ReferenceTraceBrush}" />
+                </StackPanel>
+                <StackPanel Grid.Column="2" Margin="12,0,0,0">
+                    <TextBlock Text="GEAR" Style="{StaticResource TelemetryLabelText}" HorizontalAlignment="Right" />
+                    <TextBlock Text="{Binding CurrentGear}"
+                               Style="{StaticResource TelemetryValueText}" FontSize="18" HorizontalAlignment="Right" />
+                </StackPanel>
+            </Grid>
+
+            <!-- Lap time, REC status -->
+            <Grid Margin="0,6,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="LAP" Style="{StaticResource TelemetryLabelText}" VerticalAlignment="Center" Margin="0,0,6,0" />
+                    <TextBlock Text="{Binding CurrentLapTimeString}" Style="{StaticResource TelemetryValueText}" />
+                </StackPanel>
+                <TextBlock Grid.Column="1" Text="{Binding RecordButtonText}"
+                           FontFamily="{StaticResource TelemetryNumberFontFamily}" FontSize="11" FontWeight="Bold"
+                           VerticalAlignment="Center">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Foreground" Value="{StaticResource ForegroundMutedBrush}" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsRecordingLaps}" Value="True">
+                                    <Setter Property="Foreground" Value="{StaticResource BrakeBrush}" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </Grid>
+
+            <!-- Controls (same actions as the hotkeys) -->
+            <UniformGrid Columns="3" Margin="0,10,0,0">
+                <Button Command="{Binding ToggleRacer1Command}" Margin="0,0,4,0" ToolTip="Start / stop (Ctrl+Shift+F9)">
+                    <Button.Style>
+                        <Style TargetType="Button" BasedOn="{StaticResource WidgetButton}">
+                            <Setter Property="Content" Value="START" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsRunning}" Value="True">
+                                    <Setter Property="Content" Value="STOP" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Style>
+                </Button>
+                <Button Command="{Binding ToggleRecordingCommand}" Margin="2,0" ToolTip="Capture laps on / off (Ctrl+Shift+F10)">
+                    <Button.Style>
+                        <Style TargetType="Button" BasedOn="{StaticResource WidgetButton}">
+                            <Setter Property="Content" Value="REC" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsRecordingLaps}" Value="True">
+                                    <Setter Property="Foreground" Value="{StaticResource BrakeBrush}" />
+                                    <Setter Property="BorderBrush" Value="{StaticResource BrakeBrush}" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Style>
+                </Button>
+                <Button Content="SAVE LAP" Style="{StaticResource WidgetButton}" Margin="4,0,0,0"
+                        Command="{Binding SaveLastRecordedLapCommand}"
+                        ToolTip="Save the last captured lap (Ctrl+Shift+F11)" />
+            </UniformGrid>
+
+            <TextBlock FontFamily="{StaticResource TelemetryNumberFontFamily}" FontSize="9"
+                       Foreground="{StaticResource ForegroundMutedBrush}"
+                       TextAlignment="Center" HorizontalAlignment="Center" Margin="0,8,0,0">
+                <Run Text="HOTKEYS: CTRL+SHIFT +" /><LineBreak />
+                <Run Text="F9 START/STOP | F10 REC | F11 SAVE | F12 HIDE" />
+            </TextBlock>
+        </StackPanel>
+    </Border>
+</Window>

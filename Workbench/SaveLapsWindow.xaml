@@ -1,0 +1,83 @@
+<Window x:Class="OpenATLAS.Workbench.SaveLapsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Save Recorded Laps"
+        Width="560" Height="340"
+        MinWidth="480" MinHeight="320"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False"
+        ResizeMode="CanResizeWithGrip"
+        Background="{StaticResource PanelBackgroundBrush}"
+        Foreground="{StaticResource ForegroundPrimaryBrush}"
+        FontFamily="{StaticResource SystemFontFamily}">
+
+    <Grid Margin="18,14">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />  <!-- title -->
+            <RowDefinition Height="Auto" />  <!-- lap / name -->
+            <RowDefinition Height="*" />     <!-- message -->
+            <RowDefinition Height="Auto" />  <!-- buttons -->
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Margin="0,0,0,14">
+            <TextBlock Text="SAVE RECORDED LAPS" FontSize="14" FontWeight="Bold" Foreground="{StaticResource ForegroundHighlightBrush}" />
+            <TextBlock Text="Complete laps captured with REC this session. Saved laps go to My Laps under their Grand Prix."
+                       Style="{StaticResource TelemetryLabelText}" Margin="0,4,0,0" TextWrapping="Wrap" />
+        </StackPanel>
+
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="70" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <TextBlock Text="LAP" Style="{StaticResource TelemetryLabelText}" VerticalAlignment="Center" />
+            <ComboBox Grid.Column="1"
+                      Style="{StaticResource TracksideComboBox}"
+                      ItemsSource="{Binding Laps}"
+                      SelectedItem="{Binding SelectedLap}"
+                      DisplayMemberPath="Label"
+                      ToolTip="The fastest waiting lap is chosen by default" />
+
+            <TextBlock Grid.Row="1" Text="NAME" Style="{StaticResource TelemetryLabelText}" VerticalAlignment="Center" Margin="0,8,0,0" />
+            <TextBox Grid.Row="1" Grid.Column="1"
+                     Style="{StaticResource TracksideTextBox}"
+                     Margin="0,8,0,0"
+                     Text="{Binding LapName, UpdateSourceTrigger=PropertyChanged}" />
+        </Grid>
+
+        <TextBlock Grid.Row="2"
+                   Text="{Binding Message}"
+                   FontFamily="{StaticResource TelemetryNumberFontFamily}"
+                   FontSize="11"
+                   TextWrapping="Wrap"
+                   Foreground="{StaticResource StatusStandbyBrush}"
+                   Margin="70,12,0,0" />
+
+        <Grid Grid.Row="3" Margin="0,12,0,0">
+            <Button Content="DISCARD ALL"
+                    Style="{StaticResource TracksideButton}"
+                    HorizontalAlignment="Left"
+                    Click="OnDiscardAll"
+                    ToolTip="Throw away every waiting lap without saving" />
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button Content="CLOSE" Style="{StaticResource TracksideButton}" IsCancel="True" Margin="0,0,6,0" />
+                <Button Content="SAVE ALL"
+                        Style="{StaticResource TracksideButton}"
+                        IsEnabled="{Binding CanSaveAll}"
+                        Click="OnSaveAll"
+                        Margin="0,0,6,0"
+                        ToolTip="Save every waiting lap under its suggested name" />
+                <Button Content="SAVE"
+                        Style="{StaticResource TracksidePrimaryButton}"
+                        IsDefault="True"
+                        IsEnabled="{Binding CanSave}"
+                        Click="OnSave" />
+            </StackPanel>
+        </Grid>
+    </Grid>
+</Window>

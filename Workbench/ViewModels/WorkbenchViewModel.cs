@@ -74,6 +74,7 @@ namespace OpenATLAS.Workbench.ViewModels
         private readonly LapRecorder _recorder = new();
         private volatile bool _isRecordingLaps;
         private int _lastCompletedLaps = -1;
+        private int _recordedLapNumber;
 
         private string _referenceTrackName = "-";
         private string _referenceDriverName = "-";
@@ -162,8 +163,26 @@ namespace OpenATLAS.Workbench.ViewModels
         /// <summary>STOP: ends whatever Racer 1 is running.</summary>
         public ICommand StopRacer1Command { get; }
 
-        /// <summary>Turns saving of completed live AC laps to My Laps on or off.</summary>
+        /// <summary>START when stopped, STOP when running (floating widget and its hotkey).</summary>
+        public ICommand ToggleRacer1Command { get; }
+
+        /// <summary>Saves the most recently captured lap under its suggested name (floating widget and its hotkey).</summary>
+        public ICommand SaveLastRecordedLapCommand { get; }
+
+        /// <summary>Turns capturing of completed live AC laps on or off.</summary>
         public ICommand ToggleRecordingCommand { get; }
+
+        /// <summary>
+        /// Complete live AC laps captured while REC was on, oldest first. They stay in memory until
+        /// saved (SAVE) or discarded, so nothing lands in My Laps without the user choosing it.
+        /// </summary>
+        public ObservableCollection<RecordedLap> RecordedLaps { get; } = [];
+
+        public bool HasRecordedLaps => RecordedLaps.Count > 0;
+
+        /// <summary>REC button text: "REC OFF", "REC ON", or "REC ON (3)" with laps waiting to be saved.</summary>
+        public string RecordButtonText =>
+            (IsRecordingLaps ? "REC ON" : "REC OFF") + (RecordedLaps.Count > 0 ? $" ({RecordedLaps.Count})" : "");
 
         public CircularBuffer<LiveDeltaSnapshot> CircularBuffer => _circularBuffer;
 
@@ -253,7 +272,14 @@ namespace OpenATLAS.Workbench.ViewModels
             ToggleTrackMapCommand = new RelayCommand(() => IsTrackMapVisible = !IsTrackMapVisible);
             StartRacer1Command = new RelayCommand(StartRacer1, () => !IsRunning && (!IsSavedLapSource || SelectedSavedLap != null));
             StopRacer1Command = new RelayCommand(StopRacer1, () => IsRunning);
+            ToggleRacer1Command = new RelayCommand(ToggleRacer1, () => IsRunning || StartRacer1Command.CanExecute(null));
+            SaveLastRecordedLapCommand = new RelayCommand(() => SaveLastRecordedLap(), () => HasRecordedLaps);
             ToggleRecordingCommand = new RelayCommand(() => IsRecordingLaps = !IsRecordingLaps);
+            RecordedLaps.CollectionChanged += (_, _) =>
+            {
+                OnPropertyChanged(nameof(HasRecordedLaps));
+                OnPropertyChanged(nameof(RecordButtonText));
+            };
 
             AvailableYears = _library?.GetYears() ?? [];
 
@@ -362,9 +388,12 @@ namespace OpenATLAS.Workbench.ViewModels
                     _lastCompletedLaps = -1;
                 }
                 OnPropertyChanged();
+                OnPropertyChanged(nameof(RecordButtonText));
                 StatusMessage = value
-                    ? "Recording on: every complete live AC lap is saved to My Laps."
-                    : "Recording off.";
+                    ? "Recording on: every complete lap from the start/finish line is captured. Press SAVE to keep laps."
+                    : RecordedLaps.Count > 0
+                        ? $"Recording off. {RecordedLaps.Count} captured lap(s) waiting: press SAVE to keep them."
+                        : "Recording off. No complete lap was captured (a lap counts once it is driven line to line).";
             }
         }
 
@@ -547,8 +576,14 @@ namespace OpenATLAS.Workbench.ViewModels
         public float CurrentSimTimeSeconds
         {
             get => _currentSimTimeSeconds;
-            set => SetProperty(ref _currentSimTimeSeconds, value);
+            set
+            {
+                if (SetProperty(ref _currentSimTimeSeconds, value)) OnPropertyChanged(nameof(CurrentLapTimeString));
+            }
         }
+
+        /// <summary>Racer 1's current lap time as m:ss.fff (floating widget).</summary>
+        public string CurrentLapTimeString => TimeSpan.FromSeconds(Math.Max(0, _currentSimTimeSeconds)).ToString(@"m\:ss\.fff");
 
         public float CurrentRefTimeSeconds
         {
@@ -898,11 +933,14 @@ namespace OpenATLAS.Workbench.ViewModels
             if (graphics.Status != AcStatus.Live || _referenceLap == null) return; // menus, replays, pause
 
             IReadOnlyList<RawLapSample>? finished = null;
+            string? rejectReason = null;
+            bool lapEnded = false;
             lock (_recorder)
             {
                 if (_lastCompletedLaps >= 0 && graphics.CompletedLaps != _lastCompletedLaps)
                 {
-                    finished = _recorder.FinishLap(_referenceLap.TrackLengthMeters);
+                    lapEnded = true;
+                    finished = _recorder.FinishLap(_referenceLap.TrackLengthMeters, out rejectReason);
                 }
                 _lastCompletedLaps = graphics.CompletedLaps;
 
@@ -911,29 +949,78 @@ namespace OpenATLAS.Workbench.ViewModels
                     packet.Gas * 100.0, packet.Brake * 100.0, packet.DisplayGear, packet.Rpms));
             }
 
+            if (!lapEnded) return;
+
             if (finished != null && _selectedTrack is string grandPrix)
             {
-                string lapTime = TimeSpan.FromMilliseconds(graphics.LastTimeMs).ToString(@"m\.ss\.fff");
-                string name = $"AC {DateTime.Now:yyyy-MM-dd HH.mm} {lapTime}";
-                Task.Run(() => SaveRecordedLap(finished, grandPrix, name));
+                // AC's own lap time; fall back to the recorded clock if AC has not published it yet
+                TimeSpan lapTime = graphics.LastTimeMs > 0
+                    ? TimeSpan.FromMilliseconds(graphics.LastTimeMs)
+                    : TimeSpan.FromSeconds(finished[^1].TimeSeconds);
+                RunOnUiThread(() => AddRecordedLap(finished, lapTime, grandPrix));
+            }
+            else
+            {
+                RunOnUiThread(() => StatusMessage = $"Lap not captured: {rejectReason}.");
             }
         }
 
-        private void SaveRecordedLap(IReadOnlyList<RawLapSample> samples, string grandPrix, string name)
+        /// <summary>Adds a completed lap to the session's captured laps (called on the UI thread).</summary>
+        public void AddRecordedLap(IReadOnlyList<RawLapSample> samples, TimeSpan lapTime, string grandPrix)
         {
+            var lap = new RecordedLap(++_recordedLapNumber, lapTime, grandPrix, DateTime.Now, samples);
+            RecordedLaps.Add(lap);
+            StatusMessage = $"Lap {lap.Number} captured: {lapTime:m\\:ss\\.fff}. {RecordedLaps.Count} lap(s) waiting: press SAVE to keep them.";
+        }
+
+        /// <summary>
+        /// Normalizes a captured lap, saves it to My Laps under its Grand Prix and removes it from the
+        /// waiting list. Returns the name it was saved under.
+        /// </summary>
+        public string SaveRecordedLap(RecordedLap lap, string name)
+        {
+            if (_library == null)
+            {
+                throw new InvalidOperationException("No 'references' folder was found, so there is nowhere to save laps.");
+            }
+
+            string saved = _library.SaveUserLap(LapNormalizer.Normalize(lap.Samples), lap.GrandPrix, name);
+            RecordedLaps.Remove(lap);
+            RefreshUserLaps();
+            StatusMessage = $"Lap saved to My Laps > {lap.GrandPrix} > {saved}.";
+            return saved;
+        }
+
+        public void DiscardRecordedLaps() => RecordedLaps.Clear();
+
+        /// <summary>
+        /// Quick save for use while driving: keeps the most recently captured lap under its suggested
+        /// name, without a dialog. Returns the saved name, or null when there was nothing to save.
+        /// </summary>
+        public string? SaveLastRecordedLap()
+        {
+            if (RecordedLaps.Count == 0)
+            {
+                StatusMessage = "No captured lap to save yet: a lap counts once it is driven line to line with REC on.";
+                return null;
+            }
+
+            RecordedLap last = RecordedLaps[^1];
             try
             {
-                string saved = _library!.SaveUserLap(LapNormalizer.Normalize(samples), grandPrix, name);
-                RunOnUiThread(() =>
-                {
-                    RefreshUserLaps();
-                    StatusMessage = $"Lap saved to My Laps > {grandPrix} > {saved}.";
-                });
+                return SaveRecordedLap(last, last.DefaultName);
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or IOException)
             {
-                RunOnUiThread(() => StatusMessage = $"Could not save the recorded lap: {ex.Message}");
+                StatusMessage = $"Could not save lap {last.Number}: {ex.Message}";
+                return null;
             }
+        }
+
+        public void ToggleRacer1()
+        {
+            if (IsRunning) StopRacer1();
+            else StartRacer1();
         }
 
         public void StopLiveIngestion()

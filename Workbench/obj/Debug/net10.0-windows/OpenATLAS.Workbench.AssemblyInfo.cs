@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("OpenATLAS.Workbench")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+9779dd07e3eb3a0f1fac31fd4b4ac6d79f22b27f")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+6ba6e4179c61ab86a66d35082f87f083680f90c4")]
 [assembly: System.Reflection.AssemblyProductAttribute("OpenATLAS.Workbench")]
 [assembly: System.Reflection.AssemblyTitleAttribute("OpenATLAS.Workbench")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

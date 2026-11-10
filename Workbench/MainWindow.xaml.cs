@@ -4,6 +4,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Windows;
 using System.Windows.Input;
+using System.Windows.Interop;
 using OpenATLAS.Workbench.Plotting;
 using ScottPlot;
 using ScottPlot.WPF;
@@ -23,6 +24,13 @@ namespace OpenATLAS.Workbench
         private LiveRenderLoop _renderLoop = null!;
         private DistanceCursor _cursor = null!;
         private TrackMap _trackMap = null!;
+
+        // Floating widget over the game (created on first use) and the global hotkeys that drive it.
+        // Hotkeys are system-wide, so they work while Assetto Corsa has focus (and can be mapped to wheel buttons).
+        private OverlayWindow? _overlay;
+        private HwndSource? _hwndSource;
+        private const int HotkeyToggleRacer1 = 1, HotkeyToggleRecording = 2, HotkeySaveLastLap = 3, HotkeyToggleOverlay = 4;
+        private const uint VK_F9 = 0x78, VK_F10 = 0x79, VK_F11 = 0x7A, VK_F12 = 0x7B;
 
         // Reused every frame for the pins' lap fractions on the track map
         private readonly List<double> _pinFractions = [];
@@ -115,6 +123,14 @@ namespace OpenATLAS.Workbench
 
         private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
         {
+            // The widget's buttons never get focus or input, so WPF wouldn't re-check whether they
+            // are enabled on its own; nudge it when the state behind them changes
+            if (e.PropertyName is nameof(WorkbenchViewModel.IsRunning) or nameof(WorkbenchViewModel.HasRecordedLaps)
+                or nameof(WorkbenchViewModel.IsRecordingLaps) or nameof(WorkbenchViewModel.RecordButtonText))
+            {
+                CommandManager.InvalidateRequerySuggested();
+            }
+
             if (e.PropertyName == nameof(WorkbenchViewModel.TrackLayout))
             {
                 _trackMap.Load(_viewModel.TrackLayout); // a different Grand Prix was selected
@@ -163,6 +179,62 @@ namespace OpenATLAS.Workbench
             TrackMapPlot.Refresh();
         }
 
+        #region Floating Widget & Global Hotkeys
+
+        protected override void OnSourceInitialized(EventArgs e)
+        {
+            base.OnSourceInitialized(e);
+
+            IntPtr hwnd = new WindowInteropHelper(this).Handle;
+            _hwndSource = HwndSource.FromHwnd(hwnd);
+            _hwndSource.AddHook(OnWindowMessage);
+
+            const uint mods = NativeMethods.MOD_CONTROL | NativeMethods.MOD_SHIFT | NativeMethods.MOD_NOREPEAT;
+            var failed = new List<string>();
+            if (!NativeMethods.RegisterHotKey(hwnd, HotkeyToggleRacer1, mods, VK_F9)) failed.Add("F9");
+            if (!NativeMethods.RegisterHotKey(hwnd, HotkeyToggleRecording, mods, VK_F10)) failed.Add("F10");
+            if (!NativeMethods.RegisterHotKey(hwnd, HotkeySaveLastLap, mods, VK_F11)) failed.Add("F11");
+            if (!NativeMethods.RegisterHotKey(hwnd, HotkeyToggleOverlay, mods, VK_F12)) failed.Add("F12");
+
+            if (failed.Count > 0)
+            {
+                // Another program already owns these combinations
+                _viewModel.StatusMessage = $"Hotkeys in use by another program: Ctrl+Shift+{string.Join(", ", failed)}.";
+            }
+        }
+
+        private IntPtr OnWindowMessage(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+        {
+            if (msg != NativeMethods.WM_HOTKEY) return IntPtr.Zero;
+
+            switch (wParam.ToInt32())
+            {
+                case HotkeyToggleRacer1: _viewModel.ToggleRacer1(); break;
+                case HotkeyToggleRecording: _viewModel.IsRecordingLaps = !_viewModel.IsRecordingLaps; break;
+                case HotkeySaveLastLap: _viewModel.SaveLastRecordedLap(); break;
+                case HotkeyToggleOverlay: ToggleOverlay(); break;
+                default: return IntPtr.Zero;
+            }
+
+            handled = true;
+            return IntPtr.Zero;
+        }
+
+        // View > Floating Widget
+        private void OnToggleOverlay(object sender, RoutedEventArgs e) => ToggleOverlay();
+
+        private void ToggleOverlay()
+        {
+            // Not owned by this window on purpose: an owned window would hide when the
+            // main window is minimised, which is exactly when the widget is needed
+            _overlay ??= new OverlayWindow { DataContext = _viewModel, Left = 40, Top = 40 };
+
+            if (_overlay.IsVisible) _overlay.Hide();
+            else _overlay.Show();
+        }
+
+        #endregion
+
         #region Menu Bar
 
         // File > Import Lap from CSV (Ctrl+O)
@@ -170,6 +242,18 @@ namespace OpenATLAS.Workbench
         {
             var dialog = new ImportLapWindow(new ImportLapViewModel(_viewModel)) { Owner = this };
             dialog.ShowDialog();
+        }
+
+        // File > Save Recorded Laps (Ctrl+S): available while captured laps are waiting
+        private void OnSaveRecordedLaps(object sender, ExecutedRoutedEventArgs e)
+        {
+            new SaveLapsWindow(_viewModel) { Owner = this }.ShowDialog();
+        }
+
+        private void CanSaveRecordedLaps(object sender, CanExecuteRoutedEventArgs e)
+        {
+            // WPF asks before the constructor has set the view model (during InitializeComponent)
+            e.CanExecute = _viewModel is { HasRecordedLaps: true };
         }
 
         // File > Open My Laps Folder
@@ -280,7 +364,40 @@ namespace OpenATLAS.Workbench
         /// <param name="e">Event arguments.</param>
         protected override void OnClosing(CancelEventArgs e)
         {
+            // Captured laps only exist in memory until saved
+            if (_viewModel.HasRecordedLaps)
+            {
+                var answer = MessageBox.Show(this,
+                    $"{_viewModel.RecordedLaps.Count} recorded lap(s) have not been saved.\n\nSave them before closing?",
+                    "Unsaved Laps", MessageBoxButton.YesNoCancel, MessageBoxImage.Warning, MessageBoxResult.Yes);
+
+                if (answer == MessageBoxResult.Cancel)
+                {
+                    e.Cancel = true;
+                    return;
+                }
+                if (answer == MessageBoxResult.Yes)
+                {
+                    new SaveLapsWindow(_viewModel) { Owner = this }.ShowDialog();
+                    if (_viewModel.HasRecordedLaps)
+                    {
+                        e.Cancel = true; // still unsaved laps: the user closed the dialog without saving
+                        return;
+                    }
+                }
+            }
+
             base.OnClosing(e);
+
+            if (_hwndSource != null)
+            {
+                foreach (int id in new[] { HotkeyToggleRacer1, HotkeyToggleRecording, HotkeySaveLastLap, HotkeyToggleOverlay })
+                {
+                    NativeMethods.UnregisterHotKey(_hwndSource.Handle, id);
+                }
+                _hwndSource.RemoveHook(OnWindowMessage);
+            }
+            _overlay?.Close();
             _renderLoop.Dispose();
             _viewModel.ReferenceLapChanged -= OnReferenceLapChanged;
             _viewModel.LapReset -= OnLapReset;
