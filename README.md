@@ -7,12 +7,15 @@ OpenATLAS compares your racing simulator laps against real Formula 1 telemetry i
 
 ## What It Does
 
-OpenATLAS operates on two data streams:
+OpenATLAS compares two laps, distance by distance:
 
-1. **Live Input** -- Reads real-time telemetry from **Assetto Corsa** through its shared memory at 60 Hz: car physics (speed, throttle, brake, gear, RPM, steering), lap/session state (lap time, laps completed, position on the lap, pit lane, pause) and session info (track, layout, car, driver).
-2. **Reference Baseline** -- Real-world telemetry from actual F1 qualifying sessions (e.g., Hamilton at Monza), extracted with FastF1.
+1. **Racer 1** -- the lap being analysed:
+   - **Live** telemetry from **Assetto Corsa** through its shared memory at 60 Hz: car physics (speed, throttle, brake, gear, RPM, steering), lap/session state (lap time, laps completed, position on the lap, pit lane, pause) and session info (track, layout, car, driver).
+   - One of **your own saved laps**, recorded live in the Workbench or imported from a telemetry log (CSV).
+   - A built-in **simulated** lap for testing without the game.
+2. **Racer 2** -- the reference: real-world telemetry from actual F1 qualifying sessions (e.g., Hamilton at Monza), extracted with FastF1, or another of your own laps.
 
-Both laps are placed on a common distance axis (1-meter intervals), aligned, and rendered as live trace comparisons with a continuous time delta readout.
+Both laps are placed on a common distance axis (1-meter intervals), aligned, and rendered as trace comparisons with a continuous time delta, per-sector deltas, a distance cursor and a live track map.
 
 ---
 
@@ -22,7 +25,8 @@ Both laps are placed on a common distance axis (1-meter intervals), aligned, and
 extract_reference.py          Python pipeline (FastF1)
         |                     Outputs .parquet reference laps
         v
-references/<Year>/<Grand Prix>/<DRIVER>.parquet
+references/<Year>/<Grand Prix>/<DRIVER>.parquet + track.json (sectors, corners, map outline)
+references/My Laps/<Grand Prix>/<lap>.parquet      (your recorded / imported laps)
         |
         v
  OpenATLAS.Core (.NET 10)
@@ -31,16 +35,23 @@ references/<Year>/<Grand Prix>/<DRIVER>.parquet
  +-- Network/                 SharedMemoryListener (reads all 3 AC pages at 60 Hz), UdpTelemetryListener (port 9996)
  +-- Collections/             CircularBuffer<T> (thread-safe, zero-allocation ring buffer)
  +-- Reference/               ReferenceLapIndex (Parquet reader, O(1) distance lookup, sub-meter interpolation)
- +                            ReferenceLibrary (discovers Year/Grand Prix/Driver hierarchy from disk)
+ +                            ReferenceLibrary (discovers Year/Grand Prix/Driver hierarchy, saves My Laps)
+ +                            TrackLayout (track.json: sectors, corners, map outline)
  +-- Engine/                  LiveDeltaEngine (real-time delta calculation: Dt = t_ref(s) - t_sim(s))
+ +                            PlaybackDrivers (simulated lap, saved lap replay)
+ +-- Import/                  CsvLapImporter (telemetry logs), LapNormalizer (1 m resampling),
+ +                            LapParquetWriter, LapRecorder (live AC laps)
         |
         v
  OpenATLAS.Workbench (WPF, .NET 10)
  +-- Themes/                  TracksideTheme.xaml (dark trackside color palette)
  +-- Plotting/                TracePanes (three ScottPlot panes: Speed, Pedals, Delta)
  +                            LiveRenderLoop (60 Hz UI loop that draws from the ring buffer)
- +-- ViewModels/              WorkbenchViewModel (orchestrates ingestion, delta engine, and UI state)
- +-- MainWindow.xaml          ATLAS-style dark-mode workbench shell
+ +                            DistanceCursor (hover readout, pins), TrackMap (circuit map, car position)
+ +-- ViewModels/              WorkbenchViewModel (orchestrates ingestion, delta engine, and UI state),
+ +                            SectorViewModel, CursorReadoutViewModel, ImportLapViewModel
+ +-- MainWindow.xaml          ATLAS-style dark-mode workbench shell with menu bar
+ +-- ImportLapWindow.xaml     File > Import Lap dialog
 
  OpenATLAS.ConsoleApp          Console harness: live delta, simulated dry-run, AC shared memory monitor
  OpenATLAS.Tests               xUnit test suite
@@ -189,20 +200,26 @@ Imported and recorded laps are normalised like the reference laps: time and dist
 OpenATLAS/
 |-- Core/                        Core telemetry engine library
 |   |-- Collections/             CircularBuffer<T>
-|   |-- Engine/                  LiveDeltaEngine
+|   |-- Engine/                  LiveDeltaEngine, PlaybackDrivers
+|   |-- Import/                  CsvLapImporter, LapNormalizer, LapParquetWriter, LapRecorder
 |   |-- Models/                  AC memory pages (AcPhysicsPacket, AcGraphicsPacket, AcStaticInfo, AcText),
 |   |                            TelemetrySnapshot, LiveDeltaSnapshot, ReferenceSample
 |   |-- Network/                 SharedMemoryListener, UdpTelemetryListener
-|   |-- Reference/               ReferenceLapIndex, ReferenceLibrary
+|   |-- Reference/               ReferenceLapIndex, ReferenceLibrary, TrackLayout
 |-- Workbench/                   WPF desktop application
-|   |-- Plotting/                TracePanes (ScottPlot integration), LiveRenderLoop (60 Hz render loop)
+|   |-- Plotting/                TracePanes (ScottPlot integration), LiveRenderLoop (60 Hz render loop),
+|   |                            DistanceCursor, TrackMap
 |   |-- Themes/                  TracksideTheme.xaml
-|   |-- ViewModels/              WorkbenchViewModel, ViewModelBase, RelayCommand
+|   |-- ViewModels/              WorkbenchViewModel, SectorViewModel, CursorReadoutViewModel,
+|   |                            ImportLapViewModel, ViewModelBase, RelayCommand
 |   |-- MainWindow.xaml          Main application window
+|   |-- ImportLapWindow.xaml     File > Import Lap dialog
+|   |-- InfoWindow.xaml          Help windows
 |-- ConsoleApp/                  Console harness and AC shared memory monitor (AcMonitor)
 |-- Tests/                       xUnit test suite
 |   |-- Data/                    Fixed reference lap used by the tests
-|-- references/                  Extracted F1 reference laps (.parquet)
+|-- references/                  Extracted F1 reference laps (.parquet) and track.json per Grand Prix
+|   |-- My Laps/                 Your recorded and imported laps (git-ignored)
 |-- extract_reference.py         Python reference data pipeline (FastF1)
 |-- OpenATLAS.sln                Visual Studio solution
 ```
@@ -217,26 +234,40 @@ OpenATLAS/
 |---|---|---|
 | 1 | 1.1 | FastF1 session downloader with CLI (whole season, one Grand Prix or one driver) |
 | 1 | 1.2 | Distance-domain resampling (1-meter intervals, lap aligned to exactly t = 0 at the line) |
-| 1 | 1.3 | Parquet export with a strict, downcasted schema |
+| 1 | 1.3 | Parquet export with a strict, non-nullable schema; full 2021 season shipped (22 Grands Prix, 411 laps) |
+| 1 | - | `track.json` per Grand Prix: timing-sector boundaries, corner positions, map outline and turn-number placement |
 | 2 | 2.1 | Assetto Corsa memory page structs (physics, graphics, static) matching AC's C layout byte-for-byte, locked by layout tests |
 | 2 | 2.2 | `SharedMemoryListener`: reads all three AC pages at 60 Hz, waits for the game, skips repeated samples; `UdpTelemetryListener` |
 | 2 | 2.3 | Zero-allocation struct reads via `MemoryMappedViewAccessor.Read` |
 | 3 | 3.1 | Thread-safe `CircularBuffer<T>` with `Span<T>` bulk copy and a change counter |
 | 3 | 3.2 | `ReferenceLapIndex` (Parquet-to-parallel-array loader, O(1) distance lookup, sub-meter interpolation) |
 | 3 | 3.3 | `LiveDeltaEngine` (real-time delta: Dt = t_ref(s) - t_sim(s), lap crossover detection) |
-| 4 | 4.1 | WPF dark-mode workbench shell with MVVM, trackside theme, and reference library dropdowns |
+| 4 | 4.1 | WPF dark-mode workbench shell with MVVM, trackside theme, and reference library dropdowns (Year / Grand Prix / Driver) |
 | 4 | 4.2 | ScottPlot integration: three linked trace panes (Speed, Pedals, Delta) with pre-allocated scatter buffers |
 | 4 | 4.3 | Decoupled 60 Hz UI render loop pulling from the ring buffer instead of rendering on every packet |
+| 5 | 5.3 | Your own laps: live AC lap recording (REC) and CSV log import (Telemetrick, Sim Racing Telemetry, MoTeC i2 exports), normalised and saved as `.parquet` to My Laps |
+| - | - | Two-racer comparison: Racer 1 from live AC, simulation or a saved lap; Racer 2 from any F1 lap or your own |
+| - | - | Track sector analysis per Grand Prix: reference sector times and live per-sector deltas |
+| - | - | Distance cursor across all three traces: hover readout of live vs reference values, pins with snapping and red markers |
+| - | - | Track map: circuit outline in official orientation, sector highlighting, turn numbers, car / cursor / pin markers; per-track sizing and hide/show |
+| - | - | Menu bar (File / Session / View / Help) with keyboard shortcuts; START / PAUSE / STOP / RESET controls; data source indicator; scrollable sidebar |
+| - | - | Simulation and saved-lap replay with pause/resume |
 
 ### Remaining
 
 | Phase | Task | Description |
 |---|---|---|
-| - | - | AC session tracking: lap distance and time from AC's own lap position and timer, automatic lap start at the line, pause and pit lane handling |
+| - | - | AC session tracking: live lap distance from AC's own lap position (`NormalizedCarPosition`) instead of integrating speed, automatic lap start at the line, pause and pit lane handling |
+| - | - | Fix pedal scaling in `LiveDeltaEngine`: values of 1 % in saved/reference laps are treated as 0-1 fractions and shown as 100 % |
+| - | - | In-game validation of live recording (REC) and of CSV import with real Telemetrick / Sim Racing Telemetry / MoTeC exports |
+| - | - | v1 release: self-contained Windows build and installer (e.g. Inno Setup), My Laps moved to the user's Documents folder (Program Files is read-only), version number and app icon |
+| - | - | Release decisions: code signing (Windows SmartScreen warning) and the terms for redistributing F1 timing data |
 | - | - | Always-on-top, click-through delta overlay for use while driving |
 | 5 | 5.1 | Head-up delta bar widget (large centered +/- seconds display with green/red coloring) |
-| 5 | 5.2 | Corner analysis table (automated per-corner splits: apex speed, braking point, throttle pickup) |
-| 5 | 5.3 | Session saver and exporter (save completed sim laps as `.parquet` / `.csv` to become future reference baselines) |
+| 5 | 5.2 | Corner analysis table (per-corner splits: apex speed, braking point, throttle pickup); corner positions are already in `track.json` |
+| 5 | 5.3 | Export laps as `.csv` (Parquet saving is done) |
+| 5 | - | Phase 5 deliverable: architecture diagrams, performance benchmarks (CPU / allocations) and a demo video of a sim lap over an F1 trace |
+| - | - | Optional: direct MoTeC `.ld` import; corner names in `track.json`; more seasons via FastF1 with an F1TV sign-in (only 2021-2022 download without one); comparing more than two laps |
 
 ---
 
