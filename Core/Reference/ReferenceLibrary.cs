@@ -9,8 +9,11 @@ namespace OpenATLAS.Core.Reference
     // Indexes the reference laps exported by extract_reference.py, laid out on disk as:
     //   references/<Year>/<Track>/<DRIVER>.parquet
     // The folder structure is the catalog, so adding a lap only requires dropping in a file.
-    // The user's own laps (imported or recorded) live alongside as a pseudo-year:
-    //   references/My Laps/<Grand Prix>/<lap name>.parquet
+    // The user's own laps (imported or recorded) appear as a pseudo-year "My Laps":
+    //   <user laps folder>/<Grand Prix>/<lap name>.parquet
+    // The user laps folder is references/My Laps by default (a development checkout), or a folder
+    // the user owns such as Documents\OpenATLAS\My Laps when the app is installed, because the
+    // install folder (Program Files) is read-only for normal users.
     public class ReferenceLibrary
     {
         public const string DefaultFolderName = "references";
@@ -19,16 +22,39 @@ namespace OpenATLAS.Core.Reference
 
         public string RootPath { get; }
 
-        public ReferenceLibrary(string rootPath)
+        /// <summary>Folder holding the user's laps ("My Laps"), one sub-folder per Grand Prix.</summary>
+        public string UserLapsPath { get; }
+
+        public ReferenceLibrary(string rootPath, string? userLapsPath = null)
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(rootPath);
             RootPath = rootPath;
+            UserLapsPath = userLapsPath ?? Path.Combine(rootPath, UserLapsFolderName);
         }
+
+        /// <summary>
+        /// Where My Laps goes for the app: references/My Laps when that folder already exists (a
+        /// development checkout, keeping laps saved there), otherwise Documents\OpenATLAS\My Laps.
+        /// </summary>
+        public static string DefaultUserLapsPath(string rootPath)
+        {
+            string local = Path.Combine(rootPath, UserLapsFolderName);
+            if (Directory.Exists(local)) return local;
+
+            string documents = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+            return Path.Combine(string.IsNullOrEmpty(documents) ? rootPath : documents, "OpenATLAS", UserLapsFolderName);
+        }
+
+        // Folder for a "year": a season under the root, or the user laps folder for "My Laps".
+        private string YearPath(string year) =>
+            string.Equals(year, UserLapsFolderName, StringComparison.OrdinalIgnoreCase) ? UserLapsPath : Path.Combine(RootPath, year);
 
         // Years that contain at least one track folder: seasons newest first, then "My Laps".
         public IReadOnlyList<string> GetYears()
         {
             return ListDirectories(RootPath)
+                .Where(IsSeason)
+                .Append(UserLapsFolderName)
                 .Where(year => GetTracks(year).Count > 0)
                 .OrderBy(year => IsSeason(year) ? 0 : 1)
                 .ThenByDescending(year => year, StringComparer.OrdinalIgnoreCase)
@@ -60,7 +86,7 @@ namespace OpenATLAS.Core.Reference
             ArgumentNullException.ThrowIfNull(lap);
             ArgumentException.ThrowIfNullOrWhiteSpace(grandPrix);
 
-            string folder = Path.Combine(RootPath, UserLapsFolderName, grandPrix);
+            string folder = Path.Combine(UserLapsPath, grandPrix);
             Directory.CreateDirectory(folder);
 
             string baseName = SafeFileName(lapName);
@@ -95,8 +121,7 @@ namespace OpenATLAS.Core.Reference
         // Tracks recorded for a given year that contain at least one driver lap, alphabetical.
         public IReadOnlyList<string> GetTracks(string year)
         {
-            string yearPath = Path.Combine(RootPath, year);
-            return ListDirectories(yearPath)
+            return ListDirectories(YearPath(year))
                 .Where(track => GetDrivers(year, track).Count > 0)
                 .OrderBy(track => track, StringComparer.OrdinalIgnoreCase)
                 .ToList();
@@ -105,7 +130,7 @@ namespace OpenATLAS.Core.Reference
         // Driver codes with a reference lap for a given year and track, alphabetical.
         public IReadOnlyList<string> GetDrivers(string year, string track)
         {
-            string trackPath = Path.Combine(RootPath, year, track);
+            string trackPath = Path.Combine(YearPath(year), track);
             if (!Directory.Exists(trackPath)) return [];
 
             return Directory.EnumerateFiles(trackPath, "*" + FileExtension)
@@ -117,14 +142,14 @@ namespace OpenATLAS.Core.Reference
 
         public string GetLapPath(string year, string track, string driver)
         {
-            return Path.Combine(RootPath, year, track, driver + FileExtension);
+            return Path.Combine(YearPath(year), track, driver + FileExtension);
         }
 
         // Sector/corner/map layout for a Grand Prix, or null when none exists. A folder without its own
         // track.json (e.g. laps dropped into My Laps by hand) uses the newest season's for the same Grand Prix.
         public TrackLayout? GetTrackLayout(string year, string track)
         {
-            string path = Path.Combine(RootPath, year, track, TrackLayout.FileName);
+            string path = Path.Combine(YearPath(year), track, TrackLayout.FileName);
             if (File.Exists(path)) return TrackLayout.Load(path);
 
             string? fallback = ListDirectories(RootPath)
@@ -147,7 +172,7 @@ namespace OpenATLAS.Core.Reference
                     string candidate = Path.Combine(dir.FullName, DefaultFolderName);
                     if (Directory.Exists(candidate))
                     {
-                        return new ReferenceLibrary(candidate);
+                        return new ReferenceLibrary(candidate, DefaultUserLapsPath(candidate));
                     }
                     dir = dir.Parent;
                 }

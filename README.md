@@ -26,7 +26,7 @@ extract_reference.py          Python pipeline (FastF1)
         |                     Outputs .parquet reference laps
         v
 references/<Year>/<Grand Prix>/<DRIVER>.parquet + track.json (sectors, corners, map outline)
-references/My Laps/<Grand Prix>/<lap>.parquet      (your recorded / imported laps)
+My Laps/<Grand Prix>/<lap>.parquet                (your recorded / imported laps, see Your Own Laps)
         |
         v
  OpenATLAS.Core (.NET 10)
@@ -80,7 +80,15 @@ Windows rounds timers to its ~15.6 ms clock tick, so a plain 16 ms timer only ru
 
 ---
 
-## Getting Started
+## Installation
+
+Download `OpenATLAS-Setup-<version>.exe` from the Releases page and run it. It installs the app with everything it needs (no .NET install required) plus the full 2021 F1 season, and adds a Start menu entry. Requires 64-bit Windows 10 or 11.
+
+- Windows may show a SmartScreen warning because the installer is not code-signed yet: choose **More info > Run anyway**.
+- Updating: run the newer installer over the existing install. Uninstalling: **Settings > Apps > OpenATLAS**.
+- Your own laps are kept in `Documents\OpenATLAS\My Laps`, so they survive updates and uninstalling.
+
+## Building from Source
 
 ### Prerequisites
 
@@ -121,8 +129,6 @@ python extract_reference.py --year 2021 --track Spa --session R
 Reference laps are saved to `references/<Year>/<Grand Prix>/<DRIVER>.parquet`. Laps already on disk are skipped, so an interrupted season download can simply be re-run.
 
 ### 3. Build and Run
-I'll be releasing a packaged application soon don't worry :)
-But for now->
 
 ```bash
 dotnet build OpenATLAS.sln
@@ -136,6 +142,16 @@ The Workbench will launch and automatically load the first available reference l
 ```bash
 dotnet test
 ```
+
+### 5. Build the Installer
+
+Needs [Inno Setup 6](https://jrsoftware.org/isinfo.php) (`winget install JRSoftware.InnoSetup`).
+
+```powershell
+powershell -ExecutionPolicy Bypass -File installeruild-installer.ps1
+```
+
+This runs the tests, publishes a self-contained win-x64 build to `publish/`, and writes `installer/Output/OpenATLAS-Setup-<version>.exe`. The version comes from `<Version>` in `Workbench/OpenATLAS.Workbench.csproj`: change it there for each release. Add `-SkipTests` to skip the test run.
 
 ---
 
@@ -184,7 +200,7 @@ For now, if the simulator is not running, set **Racer 1 SOURCE** to `SIMULATION`
 
 ### Your Own Laps
 
-Your laps are stored in `references/My Laps/<Grand Prix>/` (git-ignored) in the same format as the F1 laps, so they can be Racer 1 (`SAVED LAP`) or Racer 2 (`My Laps`). There are two ways to add them:
+Your laps are stored in `My Laps/<Grand Prix>/`: `Documents\OpenATLAS\My Laps` in the installed app, or `references/My Laps` when running from source if that folder exists (git-ignored). **File > Open My Laps Folder** opens it. They are kept in the same format as the F1 laps, so they can be Racer 1 (`SAVED LAP`) or Racer 2 (`My Laps`). There are two ways to add them:
 
 - **Record while driving:** click **REC** (or Session > Record Live AC Laps). Every complete lap driven in Assetto Corsa, line to line, is captured and counted on the button (`REC ON (3)`); the status bar says when a lap is captured or why one was skipped (started mid-lap, pit lane, reset). Captured laps stay in memory until you press **SAVE** (File > Save Recorded Laps, Ctrl+S) to keep, name or discard them; closing the app with unsaved laps asks first. Laps follow AC's own lap counter and clock.
 - **Import a log:** **File > Import Lap from CSV** (Ctrl+O). Pick the file, check the detected columns, choose the lap (the fastest complete lap is preselected), the Grand Prix and a name.
@@ -254,7 +270,8 @@ OpenATLAS/
 |-- Tests/                       xUnit test suite
 |   |-- Data/                    Fixed reference lap used by the tests
 |-- references/                  Extracted F1 reference laps (.parquet) and track.json per Grand Prix
-|   |-- My Laps/                 Your recorded and imported laps (git-ignored)
+|   |-- My Laps/                 Your recorded and imported laps when running from source (git-ignored)
+|-- installer/                   Inno Setup script (OpenATLAS.iss) and build-installer.ps1
 |-- assets/                      Logo source artwork
 |-- extract_reference.py         Python reference data pipeline (FastF1)
 |-- OpenATLAS.sln                Visual Studio solution
@@ -284,6 +301,7 @@ OpenATLAS/
 | 5 | 5.1 | Head-up delta: large green/red live delta in the sidebar and in the floating widget |
 | 5 | 5.2 | Corner analysis table: per-corner time, minimum speed, braking point and throttle pick-up vs Racer 2, with the biggest losses and a focus per corner |
 | 5 | 5.3 | Your own laps: live AC lap recording (REC) and CSV log import (Telemetrick, Sim Racing Telemetry, MoTeC i2 exports), normalised and saved as `.parquet` to My Laps |
+| - | - | v1.0.0 Windows installer (Inno Setup): self-contained build, bundled 2021 season, Start menu entry, clean uninstall; My Laps in Documents; version number, app icon and logo |
 | - | - | AC lap tracking: live distance from AC's own lap position (`NormalizedCarPosition`) and lap clock, comparison starts at the start/finish line (out laps and returns to the pits are skipped), clock stops while paused |
 | - | - | Delta pane rescales to the lap's delta (symmetric around zero), back to +/-1 s on a new lap |
 | - | - | Pedal traces of saved laps and replays shown at their true value (a 1 % input is no longer drawn as 100 %) |
@@ -301,7 +319,6 @@ OpenATLAS/
 | Phase | Task | Description |
 |---|---|---|
 | - | - | In-game validation of live recording (REC) and of CSV import with real Telemetrick / Sim Racing Telemetry / MoTeC exports |
-| - | - | v1 release: self-contained Windows build and installer (e.g. Inno Setup), My Laps moved to the user's Documents folder (Program Files is read-only), version number and app icon |
 | - | - | Release decisions: code signing (Windows SmartScreen warning) and the terms for redistributing F1 timing data |
 | 5 | 5.3 | Optional: export laps as `.csv` (Parquet saving is done) |
 | 5 | - | Phase 5 deliverable: architecture diagrams, performance benchmarks (CPU / allocations) and a demo video of a sim lap over an F1 trace |

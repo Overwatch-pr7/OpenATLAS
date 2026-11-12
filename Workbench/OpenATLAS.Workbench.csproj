@@ -17,6 +17,15 @@
     <NoWarn>$(NoWarn);NU1701</NoWarn>
     <!-- App icon: .exe, taskbar, Alt+Tab and the title bar of every window -->
     <ApplicationIcon>Assets\OpenATLAS.ico</ApplicationIcon>
+
+    <!-- Release version: shown in Help > About, the .exe properties and the installer.
+         Change it here only; build-installer.ps1 reads it from this file. -->
+    <Version>1.0.0</Version>
+    <!-- Keep the file version plain ("1.0.0", not "1.0.0+<git hash>") -->
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+    <Product>OpenATLAS</Product>
+    <AssemblyTitle>OpenATLAS Telemetry Workbench</AssemblyTitle>
+    <AssemblyName>OpenATLAS</AssemblyName>
   </PropertyGroup>
 
   <ItemGroup>

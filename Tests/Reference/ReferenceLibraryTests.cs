@@ -102,6 +102,40 @@ namespace OpenATLAS.Tests.Reference
         }
 
         [Fact]
+        public void UserLaps_CanLiveOutsideTheReferencesFolder()
+        {
+            // Installed app: references in Program Files (read-only), My Laps in Documents
+            using var temp = new TempReferenceLibrary("2021/Italian Grand Prix/HAM");
+            TrackLayoutTests.WriteMonzaLayout(Path.Combine(temp.RootPath, "2021", "Italian Grand Prix"));
+            string userLaps = Path.Combine(temp.RootPath, "elsewhere", "OpenATLAS", "My Laps");
+            var library = new ReferenceLibrary(temp.RootPath, userLaps);
+            var lap = ReferenceLapIndex.FromParquetFile(TempReferenceLibrary.SourceLapPath);
+
+            string saved = library.SaveUserLap(lap, "Italian Grand Prix", "Practice");
+
+            Assert.True(File.Exists(Path.Combine(userLaps, "Italian Grand Prix", "Practice.parquet")));
+            Assert.True(File.Exists(Path.Combine(userLaps, "Italian Grand Prix", TrackLayout.FileName)));
+            Assert.False(Directory.Exists(Path.Combine(temp.RootPath, ReferenceLibrary.UserLapsFolderName)));
+            Assert.Equal(["2021", ReferenceLibrary.UserLapsFolderName], library.GetYears());
+            Assert.Equal(["Practice"], library.GetUserLaps("Italian Grand Prix"));
+            Assert.True(File.Exists(library.GetLapPath(ReferenceLibrary.UserLapsFolderName, "Italian Grand Prix", saved)));
+            Assert.NotNull(library.GetTrackLayout(ReferenceLibrary.UserLapsFolderName, "Italian Grand Prix"));
+        }
+
+        [Fact]
+        public void DefaultUserLapsPath_KeepsAnExistingLocalMyLaps_ElseUsesDocuments()
+        {
+            using var temp = new TempReferenceLibrary("2021/Italian Grand Prix/HAM");
+
+            string documents = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+            Assert.Equal(Path.Combine(documents, "OpenATLAS", "My Laps"), ReferenceLibrary.DefaultUserLapsPath(temp.RootPath));
+
+            string local = Path.Combine(temp.RootPath, ReferenceLibrary.UserLapsFolderName);
+            Directory.CreateDirectory(local);
+            Assert.Equal(local, ReferenceLibrary.DefaultUserLapsPath(temp.RootPath));
+        }
+
+        [Fact]
         public void ExtractedMonzaLap_StoresBrakeAsPercent()
         {
             var lap = ReferenceLapIndex.FromParquetFile(TempReferenceLibrary.SourceLapPath);

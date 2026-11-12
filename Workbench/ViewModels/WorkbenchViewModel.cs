@@ -1217,7 +1217,7 @@ namespace OpenATLAS.Workbench.ViewModels
             get
             {
                 if (_library == null) return null;
-                string folder = Path.Combine(_library.RootPath, ReferenceLibrary.UserLapsFolderName);
+                string folder = _library.UserLapsPath;
                 Directory.CreateDirectory(folder);
                 return folder;
             }

@@ -301,8 +301,9 @@ namespace OpenATLAS.Workbench
         // Help > About
         private void OnAbout(object sender, RoutedEventArgs e)
         {
-            const string about =
-                "OpenATLAS - Trackside Telemetry & Delta Analysis Workbench\n\n" +
+            string version = typeof(MainWindow).Assembly.GetName().Version?.ToString(3) ?? "";
+            string about =
+                $"OpenATLAS {version} - Trackside Telemetry & Delta Analysis Workbench\n\n" +
                 "Compares two laps distance by distance: Racer 1 (live Assetto Corsa, the built-in\n" +
                 "simulation, or one of your saved laps) against Racer 2 (a real Formula 1 lap from\n" +
                 "FastF1, or another of your laps).\n\n" +
