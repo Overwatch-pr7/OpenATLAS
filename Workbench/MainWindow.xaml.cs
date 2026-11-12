@@ -28,6 +28,9 @@ namespace OpenATLAS.Workbench
         // Floating widget over the game (created on first use) and the global hotkeys that drive it.
         // Hotkeys are system-wide, so they work while Assetto Corsa has focus (and can be mapped to wheel buttons).
         private OverlayWindow? _overlay;
+
+        // Corner analysis pop-up (one at a time, not modal)
+        private CornerAnalysisWindow? _cornerWindow;
         private HwndSource? _hwndSource;
         private const int HotkeyToggleRacer1 = 1, HotkeyToggleRecording = 2, HotkeySaveLastLap = 3, HotkeyToggleOverlay = 4;
         private const uint VK_F9 = 0x78, VK_F10 = 0x79, VK_F11 = 0x7A, VK_F12 = 0x7B;
@@ -185,6 +188,9 @@ namespace OpenATLAS.Workbench
         {
             base.OnSourceInitialized(e);
 
+            // Ctrl+K: corner analysis (opens a window, so it lives here rather than in the view model)
+            InputBindings.Add(new KeyBinding(new RelayCommand(ShowCornerAnalysis), Key.K, ModifierKeys.Control));
+
             IntPtr hwnd = new WindowInteropHelper(this).Handle;
             _hwndSource = HwndSource.FromHwnd(hwnd);
             _hwndSource.AddHook(OnWindowMessage);
@@ -231,6 +237,22 @@ namespace OpenATLAS.Workbench
 
             if (_overlay.IsVisible) _overlay.Hide();
             else _overlay.Show();
+        }
+
+        // SECTOR ANALYSIS > CORNERS, View > Corner Analysis (Ctrl+K)
+        private void OnShowCornerAnalysis(object sender, RoutedEventArgs e) => ShowCornerAnalysis();
+
+        private void ShowCornerAnalysis()
+        {
+            if (_cornerWindow is { IsLoaded: true })
+            {
+                _cornerWindow.Activate();
+                return;
+            }
+
+            _cornerWindow = new CornerAnalysisWindow(_viewModel, length => _tracePanes.CopyLiveLap(length)) { Owner = this };
+            _cornerWindow.Closed += (_, _) => _cornerWindow = null;
+            _cornerWindow.Show();
         }
 
         #endregion

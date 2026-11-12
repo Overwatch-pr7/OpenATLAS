@@ -42,6 +42,9 @@ namespace OpenATLAS.Core.Engine
         }
 
         // Core Delta Algorithm: Pure functional calculation for sub-millisecond distance alignment
+        // simThrottle / simBrake are 0-100 %, like the reference laps. AC's raw 0-1 pedal values are
+        // scaled by the Process overloads below. (Guessing the scale from the value would turn a
+        // genuine 1 % in a saved lap into 100 %.)
         public LiveDeltaSnapshot Calculate(
             float simDistance,
             float simTime,
@@ -59,18 +62,13 @@ namespace OpenATLAS.Core.Engine
             // If refTime < simTime, sim took MORE time to reach distance 's', so delta is negative (behind).
             float deltaTime = refSample.TimeSeconds - simTime;
 
-            // In FastF1/extract_reference, throttle is 0-100%, whereas in AC physics Gas is 0.0-1.0.
-            // Normalize sim throttle to percent if it's in 0.0-1.0 range for direct 1:1 trace overlay.
-            float normalizedSimThrottle = simThrottle <= 1.0f && simThrottle > 0f ? simThrottle * 100f : simThrottle;
-            float normalizedSimBrake = simBrake <= 1.0f && simBrake > 0f ? simBrake * 100f : simBrake;
-
             return new LiveDeltaSnapshot(
                 distance: simDistance,
                 simSpeed: simSpeed,
                 refSpeed: refSample.SpeedKmh,
-                simThrottle: normalizedSimThrottle,
+                simThrottle: simThrottle,
                 refThrottle: refSample.Throttle,
-                simBrake: normalizedSimBrake,
+                simBrake: simBrake,
                 refBrake: refSample.Brake,
                 simGear: simGear,
                 refGear: refSample.Gear,
@@ -91,8 +89,8 @@ namespace OpenATLAS.Core.Engine
                 simDistance: snapshot.DistanceMeters,
                 simTime: (float)snapshot.TimestampSeconds,
                 simSpeed: snapshot.SpeedKmh,
-                simThrottle: snapshot.Throttle,
-                simBrake: snapshot.Brake,
+                simThrottle: snapshot.Throttle * 100f, // 0-1 -> %
+                simBrake: snapshot.Brake * 100f,
                 simGear: snapshot.Gear,
                 simRpm: snapshot.Rpms
             );
@@ -112,8 +110,8 @@ namespace OpenATLAS.Core.Engine
                 simDistance: simDistance,
                 simTime: simElapsedSeconds,
                 simSpeed: packet.SpeedKmh,
-                simThrottle: packet.Gas,
-                simBrake: packet.Brake,
+                simThrottle: packet.Gas * 100f, // 0-1 -> %
+                simBrake: packet.Brake * 100f,
                 simGear: packet.DisplayGear, // AC counts R=0, N=1; convert to N=0, 1st=1
                 simRpm: packet.Rpms
             );

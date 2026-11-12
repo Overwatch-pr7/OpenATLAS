@@ -123,6 +123,36 @@ namespace OpenATLAS.Tests.Workbench
         }
 
         [Fact]
+        public void DeltaAxis_GrowsToFitTheLap_KeepingZeroInTheMiddle()
+        {
+            var panes = CreatePanes();
+
+            panes.UpdateLive(new[] { Sample(10f, -0.4f), Sample(20f, 0.5f) });
+            Assert.Equal(1, panes.DeltaAxisLimit);   // small deltas: the default +/-1 s
+
+            panes.UpdateLive(new[] { Sample(10f, -0.4f), Sample(20f, -46.8f) });
+            Assert.Equal(60, panes.DeltaAxisLimit);  // -46.8 s fits in +/-60 s
+            var limits = panes.DeltaPlot.Axes.GetLimits();
+            Assert.Equal(-60, limits.Bottom);
+            Assert.Equal(60, limits.Top);
+        }
+
+        [Fact]
+        public void DeltaAxis_ShrinksBackOnANewLap()
+        {
+            var panes = CreatePanes();
+            panes.UpdateLive(new[] { Sample(5000f, -3f), Sample(5700f, -4f) });
+            Assert.Equal(5, panes.DeltaAxisLimit);
+
+            panes.UpdateLive(new[] { Sample(5000f, -3f), Sample(5700f, -4f), Sample(10f, 0.1f) });
+            Assert.Equal(1, panes.DeltaAxisLimit);
+
+            panes.UpdateLive(new[] { Sample(10f, -3f) });
+            panes.ClearLive();
+            Assert.Equal(1, panes.DeltaAxisLimit);
+        }
+
+        [Fact]
         public void ClearLive_ResetsCount()
         {
             var panes = CreatePanes();

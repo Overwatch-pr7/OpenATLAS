@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using OpenATLAS.Core.Analysis;
 using OpenATLAS.Core.Models;
 using OpenATLAS.Core.Reference;
 using ScottPlot;
@@ -32,6 +33,7 @@ namespace OpenATLAS.Workbench.Plotting
         private readonly double[] _liveThrottle;
         private readonly double[] _liveBrake;
         private readonly double[] _liveDelta;
+        private readonly double[] _liveTime; // not drawn; kept for the corner analysis
 
         private readonly Scatter _liveSpeedLine;
         private readonly Scatter _liveThrottleLine;
@@ -73,6 +75,7 @@ namespace OpenATLAS.Workbench.Plotting
             _liveThrottle = new double[liveCapacity];
             _liveBrake = new double[liveCapacity];
             _liveDelta = new double[liveCapacity];
+            _liveTime = new double[liveCapacity];
 
             ApplyStyle(SpeedPlot, "km/h");
             ApplyStyle(PedalPlot, "%");
@@ -158,6 +161,7 @@ namespace OpenATLAS.Workbench.Plotting
             }
 
             int count = 0;
+            double maxAbsDelta = 0;
             for (int i = start; i < samples.Length; i++, count++)
             {
                 ref readonly LiveDeltaSnapshot s = ref samples[i];
@@ -166,12 +170,53 @@ namespace OpenATLAS.Workbench.Plotting
                 _liveThrottle[count] = s.SimThrottle;
                 _liveBrake[count] = s.SimBrake;
                 _liveDelta[count] = s.DeltaTime;
+                _liveTime[count] = s.SimTime;
+                maxAbsDelta = Math.Max(maxAbsDelta, Math.Abs(s.DeltaTime));
             }
 
             SetLiveCount(count);
+            FitDeltaAxis(maxAbsDelta);
         }
 
-        public void ClearLive() => SetLiveCount(0);
+        public void ClearLive()
+        {
+            SetLiveCount(0);
+            FitDeltaAxis(0);
+        }
+
+        // Delta pane range, kept symmetric so zero stays in the middle: +/-1 s until the lap's delta
+        // grows past it, then the next step that fits. Only changed when the step changes, so
+        // zooming the pane by hand is not undone every frame.
+        private static readonly double[] DeltaAxisSteps = [1, 2, 5, 10, 20, 30, 60, 120, 300];
+
+        public double DeltaAxisLimit { get; private set; } = 1;
+
+        private void FitDeltaAxis(double maxAbsDelta)
+        {
+            double needed = maxAbsDelta * 1.1; // headroom so the line does not touch the edge
+            double limit = DeltaAxisSteps[^1];
+            foreach (double step in DeltaAxisSteps)
+            {
+                if (step >= needed) { limit = step; break; }
+            }
+
+            if (limit == DeltaAxisLimit) return;
+            DeltaAxisLimit = limit;
+            DeltaPlot.Axes.SetLimitsY(-limit, limit);
+        }
+
+        /// <summary>
+        /// Copy of the lap in progress (as far as it has been driven) for the corner analysis.
+        /// Null when there are no live samples.
+        /// </summary>
+        public LapTrace? CopyLiveLap(double lapLengthMeters)
+        {
+            int count = LiveCount;
+            if (count < 2) return null;
+            return new LapTrace(
+                _liveDistance[..count], _liveSpeed[..count], _liveThrottle[..count],
+                _liveBrake[..count], _liveTime[..count], lapLengthMeters);
+        }
 
         /// <summary>
         /// Live values at a distance, interpolated between the two nearest live samples.

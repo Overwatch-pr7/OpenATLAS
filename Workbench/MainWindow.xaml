@@ -94,6 +94,7 @@
                               IsChecked="{Binding IsRecordingLaps, Mode=TwoWay}" />
                 </MenuItem>
                 <MenuItem Header="_View">
+                    <MenuItem Header="_Corner Analysis..." InputGestureText="Ctrl+K" Click="OnShowCornerAnalysis" />
                     <MenuItem Header="_Floating Widget" InputGestureText="Ctrl+Shift+F12" Click="OnToggleOverlay" />
                     <MenuItem Header="_Track Map"
                               IsCheckable="True"
@@ -125,6 +126,10 @@
 
                 <!-- Brand / Logo -->
                 <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,24,0" ClipToBounds="True">
+                    <Image Source="pack://application:,,,/Assets/logo.png"
+                           Width="20" Height="20" Margin="0,0,8,0"
+                           RenderOptions.BitmapScalingMode="HighQuality"
+                           VerticalAlignment="Center" />
                     <TextBlock Text="OPENATLAS"
                                FontFamily="{StaticResource SystemFontFamily}"
                                FontSize="14"
@@ -762,7 +767,16 @@
                     <!-- ============================================================= -->
                     <Border Grid.Row="3" Padding="12,10">
                         <StackPanel>
-                            <TextBlock Text="TRACK SECTOR ANALYSIS" Style="{StaticResource TelemetryLabelText}" Margin="0,0,0,8" />
+                            <Grid Margin="0,0,0,8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="TRACK SECTOR ANALYSIS" Style="{StaticResource TelemetryLabelText}" VerticalAlignment="Center" />
+                                <Button Grid.Column="1" Content="CORNERS" Style="{StaticResource TracksideButton}"
+                                        Padding="8,2" FontSize="10" Click="OnShowCornerAnalysis"
+                                        ToolTip="Corner-by-corner table: apex speed, braking point and throttle pick-up vs Racer 2 (Ctrl+K)" />
+                            </Grid>
 
                             <!-- One card per sector of the selected Grand Prix (from its track.json).
                                  Active sector gets a highlighted border; the delta turns green/red once timed. -->

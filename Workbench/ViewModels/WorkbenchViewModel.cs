@@ -118,10 +118,9 @@ namespace OpenATLAS.Workbench.ViewModels
         private int _activeSector = -1;
         private float _sectorStartDelta;
 
-        // Live Ingestion Tracking State
-        private float _accumulatedDistance;
-        private float _accumulatedLapTime;
-        private DateTime _lastPacketTime = DateTime.UtcNow;
+        // Live Ingestion Tracking State: lap distance and time from AC's own lap position and clock
+        private AcLapTracker? _acLap;
+        private AcLapState _lastAcLapState = AcLapState.Paused;
 
         /// <summary>
         /// Command to initiate live shared memory connection to Assetto Corsa.
@@ -838,9 +837,7 @@ namespace OpenATLAS.Workbench.ViewModels
 
         private void HandleLapCompleted()
         {
-            _accumulatedDistance = 0f;
-            _accumulatedLapTime = 0f;
-            StatusMessage = "Lap completed. Crossed start/finish line.";
+            RunOnUiThread(() => StatusMessage = "Lap completed. Crossed start/finish line.");
         }
 
         #endregion
@@ -860,9 +857,8 @@ namespace OpenATLAS.Workbench.ViewModels
             try
             {
                 _sharedMemoryListener = new SharedMemoryListener();
-                _lastPacketTime = DateTime.UtcNow;
-                _accumulatedDistance = 0f;
-                _accumulatedLapTime = 0f;
+                _acLap = new AcLapTracker(_referenceLap.TrackLengthMeters);
+                _lastAcLapState = AcLapState.Paused;
 
                 _sharedMemoryListener.OnTelemetryUpdated += OnLiveTelemetryReceived;
                 _sharedMemoryListener.OnConnectionChanged += OnAcConnectionChanged;
@@ -895,33 +891,38 @@ namespace OpenATLAS.Workbench.ViewModels
         }
 
         // Called on the listener thread for every new AC sample.
-        // The graphics page (lap/pit/pause state) is not used yet.
+        // Distance and lap time come from AC's lap position and lap clock (see AcLapTracker), so
+        // nothing drifts over a lap, pauses stop the clock, and out laps are not compared.
         private void OnLiveTelemetryReceived(AcPhysicsPacket packet, AcGraphicsPacket graphics)
         {
-            if (_deltaEngine == null || _referenceLap == null) return;
+            if (_deltaEngine == null || _referenceLap == null || _acLap == null) return;
 
-            DateTime now = DateTime.UtcNow;
-            float dt = (float)(now - _lastPacketTime).TotalSeconds;
-            _lastPacketTime = now;
+            AcLapPosition lap = _acLap.Update(graphics);
+            ReportAcLapState(_acLap.State);
 
-            if (dt <= 0f || dt > 0.5f) dt = 0.016f; // Clamped nominal frame delta
-
-            float speedMps = packet.SpeedKmh / 3.6f;
-            _accumulatedDistance += speedMps * dt;
-            _accumulatedLapTime += dt;
-
-            if (_accumulatedDistance >= _referenceLap.TrackLengthMeters)
+            if (lap.IsTimed)
             {
-                _accumulatedDistance = 0f;
-                _accumulatedLapTime = 0f;
-                _deltaEngine.Reset();
+                // Process() pushes the snapshot into the ring buffer (engine OutputBuffer).
+                // No UI work here: the 60 Hz render loop picks it up (Task 4.3).
+                _deltaEngine.Process(packet, lap.DistanceMeters, lap.LapTimeSeconds);
             }
 
-            // Process() pushes the snapshot into the ring buffer (engine OutputBuffer).
-            // No UI work here: the 60 Hz render loop picks it up (Task 4.3).
-            _deltaEngine.Process(packet, _accumulatedDistance, _accumulatedLapTime);
-
             if (_isRecordingLaps) RecordSample(packet, graphics);
+        }
+
+        // Status line on changes only (out lap, paused, timing), not on every sample
+        private void ReportAcLapState(AcLapState state)
+        {
+            if (state == _lastAcLapState) return;
+            _lastAcLapState = state;
+
+            string message = state switch
+            {
+                AcLapState.WaitingForLine => "Out lap: the comparison starts when you cross the start/finish line.",
+                AcLapState.Paused => "Assetto Corsa paused or in a menu: the lap clock is stopped.",
+                _ => "Timing a lap from the start/finish line."
+            };
+            RunOnUiThread(() => StatusMessage = message);
         }
 
         /// <summary>
@@ -1241,6 +1242,17 @@ namespace OpenATLAS.Workbench.ViewModels
             RefreshSavedLaps();
         }
 
+        /// <summary>Loads one of the user's saved laps for the selected Grand Prix. Throws when it cannot be read.</summary>
+        public ReferenceLapIndex LoadSavedLap(string name)
+        {
+            if (_library == null || _selectedTrack == null)
+            {
+                throw new InvalidOperationException("No Grand Prix is selected.");
+            }
+            return ReferenceLapIndex.FromParquetFile(
+                _library.GetLapPath(ReferenceLibrary.UserLapsFolderName, _selectedTrack, name));
+        }
+
         private void RefreshSavedLaps()
         {
             var laps = _library != null && _selectedTrack != null ? _library.GetUserLaps(_selectedTrack) : [];
@@ -1254,8 +1266,6 @@ namespace OpenATLAS.Workbench.ViewModels
 
         public void ResetLap()
         {
-            _accumulatedDistance = 0f;
-            _accumulatedLapTime = 0f;
             _circularBuffer.Clear();
             _deltaEngine?.Reset();
             ClearSectorDeltas();

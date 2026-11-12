@@ -4,10 +4,43 @@ cache/
 # Python
 .venv/
 __pycache__/
+*.pyc
 
 # .NET build output
 bin/
 obj/
 
+# Release builds and installer output
+publish/
+dist/
+installer/Output/
+
+# Test results and coverage
+TestResults/
+*.trx
+coverage/
+*.coverage
+*.coveragexml
+coverage*.xml
+coverage*.json
+
+# IDE and per-user settings
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+
+# Logs
+*.log
+
+# OS files
+Thumbs.db
+Desktop.ini
+
 # Personal laps (imported or recorded in the Workbench)
 references/My Laps/
+
+# Development notes (kept locally, not part of the project)
+UI_guidelines.txt
+openatlas_idea.md

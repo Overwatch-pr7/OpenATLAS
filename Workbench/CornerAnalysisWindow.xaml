@@ -1,0 +1,231 @@
+<Window x:Class="OpenATLAS.Workbench.CornerAnalysisWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Corner Analysis"
+        Width="980" Height="620"
+        MinWidth="900" MinHeight="360"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False"
+        ResizeMode="CanResizeWithGrip"
+        Background="{StaticResource PanelBackgroundBrush}"
+        Foreground="{StaticResource ForegroundPrimaryBrush}"
+        FontFamily="{StaticResource SystemFontFamily}">
+
+    <Window.Resources>
+        <!-- Column widths shared by the header and every row -->
+        <GridLength x:Key="ColTurn">54</GridLength>
+        <GridLength x:Key="ColAt">70</GridLength>
+        <GridLength x:Key="ColTime">84</GridLength>
+        <GridLength x:Key="ColSpeed">48</GridLength>
+        <GridLength x:Key="ColSpeedDiff">48</GridLength>
+        <GridLength x:Key="ColPoint">62</GridLength>
+        <GridLength x:Key="ColPointDiff">80</GridLength>
+
+        <Style x:Key="HeadText" TargetType="TextBlock" BasedOn="{StaticResource TelemetryLabelText}">
+            <Setter Property="FontSize" Value="10" />
+            <Setter Property="VerticalAlignment" Value="Bottom" />
+        </Style>
+
+        <Style x:Key="CellText" TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="{StaticResource TelemetryNumberFontFamily}" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+
+        <Style x:Key="YouText" TargetType="TextBlock" BasedOn="{StaticResource CellText}">
+            <Setter Property="Foreground" Value="{StaticResource LiveTraceBrush}" />
+        </Style>
+
+        <Style x:Key="RefText" TargetType="TextBlock" BasedOn="{StaticResource CellText}">
+            <Setter Property="Foreground" Value="{StaticResource ReferenceTraceBrush}" />
+        </Style>
+
+        <!-- Comparison cells: Tag holds the CompareResult -->
+        <Style x:Key="DiffText" TargetType="TextBlock" BasedOn="{StaticResource CellText}">
+            <Setter Property="Foreground" Value="{StaticResource ForegroundMutedBrush}" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="Worse">
+                    <Setter Property="Foreground" Value="{StaticResource DeltaBehindBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="Better">
+                    <Setter Property="Foreground" Value="{StaticResource DeltaAheadBrush}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="18,14">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />  <!-- title -->
+            <RowDefinition Height="Auto" />  <!-- lap pickers -->
+            <RowDefinition Height="Auto" />  <!-- summary -->
+            <RowDefinition Height="Auto" />  <!-- table header -->
+            <RowDefinition Height="*" />     <!-- rows -->
+            <RowDefinition Height="Auto" />  <!-- footer -->
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Margin="0,0,0,12">
+            <TextBlock Text="CORNER ANALYSIS" FontSize="14" FontWeight="Bold" Foreground="{StaticResource ForegroundHighlightBrush}" />
+            <TextBlock Style="{StaticResource TelemetryLabelText}" Margin="0,4,0,0" TextWrapping="Wrap"
+                       Text="Every corner of the selected Grand Prix, Racer 1 against Racer 2. Distances are metres from the start/finish line, as on the graphs." />
+        </StackPanel>
+
+        <!-- Racer 1 lap choice; Racer 2 is whatever is selected in the main window -->
+        <Grid Grid.Row="1" Margin="0,0,0,10">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="340" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Text="RACER 1" Style="{StaticResource TelemetryLabelText}" Foreground="{StaticResource LiveTraceBrush}"
+                       FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,10,0" />
+            <ComboBox Grid.Column="1" Style="{StaticResource TracksideComboBox}"
+                      ItemsSource="{Binding Racer1Options}" SelectedItem="{Binding SelectedRacer1}"
+                      ToolTip="The lap in progress, a lap captured with REC, or a saved lap" />
+            <TextBlock Grid.Column="2" Text="RACER 2" Style="{StaticResource TelemetryLabelText}" Foreground="{StaticResource ReferenceTraceBrush}"
+                       FontWeight="Bold" VerticalAlignment="Center" Margin="24,0,10,0" />
+            <TextBlock Grid.Column="3" Text="{Binding Racer2Label}" Style="{StaticResource CellText}"
+                       Foreground="{StaticResource ReferenceTraceBrush}" TextTrimming="CharacterEllipsis"
+                       ToolTip="Change Racer 2 in the main window" />
+            <Button Grid.Column="4" Content="REFRESH" Style="{StaticResource TracksideButton}"
+                    Command="{Binding RefreshCommand}" ToolTip="Measure both laps again" />
+        </Grid>
+
+        <TextBlock Grid.Row="2" Text="{Binding Summary}" Style="{StaticResource CellText}" FontWeight="Bold"
+                   Foreground="{StaticResource DeltaBehindBrush}" Margin="0,0,0,10" TextWrapping="Wrap" />
+
+        <!-- Header -->
+        <Border Grid.Row="3" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="6,0,6,6">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="{StaticResource ColTurn}" />
+                    <ColumnDefinition Width="{StaticResource ColAt}" />
+                    <ColumnDefinition Width="{StaticResource ColTime}" />
+                    <ColumnDefinition Width="{StaticResource ColSpeed}" />
+                    <ColumnDefinition Width="{StaticResource ColSpeed}" />
+                    <ColumnDefinition Width="{StaticResource ColSpeedDiff}" />
+                    <ColumnDefinition Width="{StaticResource ColPoint}" />
+                    <ColumnDefinition Width="{StaticResource ColPoint}" />
+                    <ColumnDefinition Width="{StaticResource ColPointDiff}" />
+                    <ColumnDefinition Width="{StaticResource ColPoint}" />
+                    <ColumnDefinition Width="{StaticResource ColPoint}" />
+                    <ColumnDefinition Width="{StaticResource ColPointDiff}" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <TextBlock Grid.Column="3" Grid.ColumnSpan="3" Text="MIN SPEED (KM/H)" Style="{StaticResource HeadText}" Margin="0,0,0,3"
+                           ToolTip="Slowest point through the corner" />
+                <TextBlock Grid.Column="6" Grid.ColumnSpan="3" Text="BRAKING POINT (M)" Style="{StaticResource HeadText}" Margin="0,0,0,3"
+                           ToolTip="Where braking starts. EARLY = Racer 1 brakes before Racer 2" />
+                <TextBlock Grid.Column="9" Grid.ColumnSpan="3" Text="THROTTLE PICK-UP (M)" Style="{StaticResource HeadText}" Margin="0,0,0,3"
+                           ToolTip="Where the throttle passes 50 % on the way out. FLAT = never lifted" />
+
+                <TextBlock Grid.Row="1" Text="TURN" Style="{StaticResource HeadText}" />
+                <TextBlock Grid.Row="1" Grid.Column="1" Text="AT" Style="{StaticResource HeadText}" ToolTip="Corner position on the lap" />
+                <TextBlock Grid.Row="1" Grid.Column="2" Text="TIME" Style="{StaticResource HeadText}"
+                           ToolTip="Time gained (+) or lost (-) between the corners either side" />
+                <TextBlock Grid.Row="1" Grid.Column="3" Text="YOU" Style="{StaticResource HeadText}" Foreground="{StaticResource LiveTraceBrush}" />
+                <TextBlock Grid.Row="1" Grid.Column="4" Text="REF" Style="{StaticResource HeadText}" Foreground="{StaticResource ReferenceTraceBrush}" />
+                <TextBlock Grid.Row="1" Grid.Column="5" Text="DIFF" Style="{StaticResource HeadText}" />
+                <TextBlock Grid.Row="1" Grid.Column="6" Text="YOU" Style="{StaticResource HeadText}" Foreground="{StaticResource LiveTraceBrush}" />
+                <TextBlock Grid.Row="1" Grid.Column="7" Text="REF" Style="{StaticResource HeadText}" Foreground="{StaticResource ReferenceTraceBrush}" />
+                <TextBlock Grid.Row="1" Grid.Column="8" Text="DIFF" Style="{StaticResource HeadText}" />
+                <TextBlock Grid.Row="1" Grid.Column="9" Text="YOU" Style="{StaticResource HeadText}" Foreground="{StaticResource LiveTraceBrush}" />
+                <TextBlock Grid.Row="1" Grid.Column="10" Text="REF" Style="{StaticResource HeadText}" Foreground="{StaticResource ReferenceTraceBrush}" />
+                <TextBlock Grid.Row="1" Grid.Column="11" Text="DIFF" Style="{StaticResource HeadText}" />
+                <TextBlock Grid.Row="1" Grid.Column="12" Text="FOCUS" Style="{StaticResource HeadText}"
+                           ToolTip="The biggest difference in this corner" />
+            </Grid>
+        </Border>
+
+        <!-- Rows -->
+        <ScrollViewer Grid.Row="4" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <ItemsControl ItemsSource="{Binding Rows}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Border BorderBrush="{StaticResource SubtleBorderBrush}" BorderThickness="0,0,0,1" Padding="6,5">
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Setter Property="Background" Value="Transparent" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsBiggestLoss}" Value="True">
+                                            <Setter Property="Background" Value="{StaticResource HeaderBackgroundBrush}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="{StaticResource ColTurn}" />
+                                    <ColumnDefinition Width="{StaticResource ColAt}" />
+                                    <ColumnDefinition Width="{StaticResource ColTime}" />
+                                    <ColumnDefinition Width="{StaticResource ColSpeed}" />
+                                    <ColumnDefinition Width="{StaticResource ColSpeed}" />
+                                    <ColumnDefinition Width="{StaticResource ColSpeedDiff}" />
+                                    <ColumnDefinition Width="{StaticResource ColPoint}" />
+                                    <ColumnDefinition Width="{StaticResource ColPoint}" />
+                                    <ColumnDefinition Width="{StaticResource ColPointDiff}" />
+                                    <ColumnDefinition Width="{StaticResource ColPoint}" />
+                                    <ColumnDefinition Width="{StaticResource ColPoint}" />
+                                    <ColumnDefinition Width="{StaticResource ColPointDiff}" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+
+                                <!-- Corners with the most time lost: red mark on the left edge (drawn in the padding, so columns stay aligned) -->
+                                <Rectangle Grid.ColumnSpan="13" Width="3" HorizontalAlignment="Left" Margin="-6,-5,0,-5"
+                                           Fill="{StaticResource DeltaBehindBrush}">
+                                    <Rectangle.Style>
+                                        <Style TargetType="Rectangle">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsBiggestLoss}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Rectangle.Style>
+                                </Rectangle>
+
+                                <TextBlock Text="{Binding Corner}" Style="{StaticResource CellText}" FontWeight="Bold"
+                                           Foreground="{StaticResource ForegroundHighlightBrush}" />
+                                <TextBlock Grid.Column="1" Text="{Binding Position}" Style="{StaticResource CellText}"
+                                           Foreground="{StaticResource ForegroundMutedBrush}" />
+                                <TextBlock Grid.Column="2" Text="{Binding TimeDelta}" Tag="{Binding TimeResult}" Style="{StaticResource DiffText}" />
+
+                                <TextBlock Grid.Column="3" Text="{Binding SpeedYou}" Style="{StaticResource YouText}" />
+                                <TextBlock Grid.Column="4" Text="{Binding SpeedRef}" Style="{StaticResource RefText}" />
+                                <TextBlock Grid.Column="5" Text="{Binding SpeedDiff}" Tag="{Binding SpeedResult}" Style="{StaticResource DiffText}" />
+
+                                <TextBlock Grid.Column="6" Text="{Binding BrakeYou}" Style="{StaticResource YouText}" />
+                                <TextBlock Grid.Column="7" Text="{Binding BrakeRef}" Style="{StaticResource RefText}" />
+                                <TextBlock Grid.Column="8" Text="{Binding BrakeDiff}" Tag="{Binding BrakeResult}" Style="{StaticResource DiffText}" />
+
+                                <TextBlock Grid.Column="9" Text="{Binding ThrottleYou}" Style="{StaticResource YouText}" />
+                                <TextBlock Grid.Column="10" Text="{Binding ThrottleRef}" Style="{StaticResource RefText}" />
+                                <TextBlock Grid.Column="11" Text="{Binding ThrottleDiff}" Tag="{Binding ThrottleResult}" Style="{StaticResource DiffText}" />
+
+                                <TextBlock Grid.Column="12" Text="{Binding Focus}" Tag="{Binding FocusResult}" Style="{StaticResource DiffText}"
+                                           TextTrimming="CharacterEllipsis" />
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+
+        <!-- Footer: why something is missing, and close -->
+        <Grid Grid.Row="5" Margin="0,12,0,0">
+            <TextBlock Text="{Binding Message}" Style="{StaticResource CellText}" FontSize="11"
+                       Foreground="{StaticResource StatusStandbyBrush}" TextWrapping="Wrap" Margin="0,0,100,0" />
+            <Button Content="CLOSE" Style="{StaticResource TracksideButton}" IsCancel="True"
+                    HorizontalAlignment="Right" Click="OnClose" />
+        </Grid>
+    </Grid>
+</Window>

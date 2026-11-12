@@ -156,9 +156,10 @@ Every comparison has two laps, chosen in the bar under the header:
 2. Set **Racer 1 SOURCE** to `LIVE AC` and click **START**. You can do this before or after starting the game: the app waits and connects on its own as soon as AC's shared memory appears.
 3. Drive. Live traces are drawn in cyan over the yellow reference.
 
-Current limitations (being worked on next):
-- The live distance is estimated from speed over time, and the lap starts when you click Connect rather than at the start/finish line. AC's own lap position and lap timer are already being read (see the monitor below) and will replace this.
-- Pausing the game and driving in the pit lane are not handled yet.
+How laps are timed:
+- Distance and lap time come from AC itself (its lap position and lap clock), with the AC lap mapped onto the reference lap by fraction, so a track of slightly different length still lines up corner for corner.
+- The comparison starts when you cross the start/finish line. On an out lap, or after returning to the pits, the status bar says so and nothing is drawn until the line.
+- Pausing the game stops the clock; the lap carries on when you resume.
 
 ### Checking that AC data is read correctly (AC Shared Memory Monitor)
 
@@ -207,6 +208,20 @@ Imported and recorded laps are normalised like the reference laps: time and dist
 | Ctrl+Shift+F11 | Save the last captured lap |
 | Ctrl+Shift+F12 | Show / hide the widget |
 
+### Corner Analysis
+
+**CORNERS** (next to TRACK SECTOR ANALYSIS), **View > Corner Analysis** or **Ctrl+K** opens a table of every corner of the selected Grand Prix, Racer 1 against Racer 2:
+
+| Column | Meaning |
+|---|---|
+| TIME | Time gained (+) or lost (-) between the corners either side |
+| MIN SPEED | Slowest point through the corner, km/h |
+| BRAKING POINT | Where braking starts (metres from the line). EARLY = you brake before Racer 2 |
+| THROTTLE PICK-UP | Where the throttle passes 50 % on the way out. FLAT = never lifted, LIFTED = you lifted where Racer 2 stayed flat |
+| FOCUS | The biggest difference in that corner (e.g. BRAKE LATER, CARRY MORE SPEED, EARLIER THROTTLE) |
+
+The three corners losing the most time are marked in red and listed at the top. Racer 1 can be the lap in progress (refreshed every second while running), a lap captured with REC, or any saved lap; Racer 2 is whatever is selected in the main window. The window can stay open beside the graphs.
+
 ---
 
 ## Project Structure
@@ -214,6 +229,7 @@ Imported and recorded laps are normalised like the reference laps: time and dist
 ```
 OpenATLAS/
 |-- Core/                        Core telemetry engine library
+|   |-- Analysis/                CornerAnalysis (corner zones, apex speed, braking point, throttle pick-up)
 |   |-- Collections/             CircularBuffer<T>
 |   |-- Engine/                  LiveDeltaEngine, PlaybackDrivers
 |   |-- Import/                  CsvLapImporter, LapNormalizer, LapParquetWriter, LapRecorder
@@ -222,21 +238,24 @@ OpenATLAS/
 |   |-- Network/                 SharedMemoryListener, UdpTelemetryListener
 |   |-- Reference/               ReferenceLapIndex, ReferenceLibrary, TrackLayout
 |-- Workbench/                   WPF desktop application
+|   |-- Assets/                  App icon (OpenATLAS.ico, all Windows sizes) and logo
 |   |-- Plotting/                TracePanes (ScottPlot integration), LiveRenderLoop (60 Hz render loop),
 |   |                            DistanceCursor, TrackMap
 |   |-- Themes/                  TracksideTheme.xaml
-|   |-- ViewModels/              WorkbenchViewModel, SectorViewModel, CursorReadoutViewModel,
-|   |                            ImportLapViewModel, ViewModelBase, RelayCommand
+|   |-- ViewModels/              WorkbenchViewModel, SectorViewModel, CursorReadoutViewModel, CornerAnalysisViewModel,
+|   |                            CornerRowViewModel, ImportLapViewModel, SaveLapsViewModel, ViewModelBase, RelayCommand
 |   |-- MainWindow.xaml          Main application window
 |   |-- ImportLapWindow.xaml     File > Import Lap dialog
 |   |-- InfoWindow.xaml          Help windows
 |   |-- SaveLapsWindow.xaml      File > Save Recorded Laps dialog
 |   |-- OverlayWindow.xaml       Floating widget shown over the game
+|   |-- CornerAnalysisWindow.xaml  Corner analysis table
 |-- ConsoleApp/                  Console harness and AC shared memory monitor (AcMonitor)
 |-- Tests/                       xUnit test suite
 |   |-- Data/                    Fixed reference lap used by the tests
 |-- references/                  Extracted F1 reference laps (.parquet) and track.json per Grand Prix
 |   |-- My Laps/                 Your recorded and imported laps (git-ignored)
+|-- assets/                      Logo source artwork
 |-- extract_reference.py         Python reference data pipeline (FastF1)
 |-- OpenATLAS.sln                Visual Studio solution
 ```
@@ -262,7 +281,12 @@ OpenATLAS/
 | 4 | 4.1 | WPF dark-mode workbench shell with MVVM, trackside theme, and reference library dropdowns (Year / Grand Prix / Driver) |
 | 4 | 4.2 | ScottPlot integration: three linked trace panes (Speed, Pedals, Delta) with pre-allocated scatter buffers |
 | 4 | 4.3 | Decoupled 60 Hz UI render loop pulling from the ring buffer instead of rendering on every packet |
+| 5 | 5.1 | Head-up delta: large green/red live delta in the sidebar and in the floating widget |
+| 5 | 5.2 | Corner analysis table: per-corner time, minimum speed, braking point and throttle pick-up vs Racer 2, with the biggest losses and a focus per corner |
 | 5 | 5.3 | Your own laps: live AC lap recording (REC) and CSV log import (Telemetrick, Sim Racing Telemetry, MoTeC i2 exports), normalised and saved as `.parquet` to My Laps |
+| - | - | AC lap tracking: live distance from AC's own lap position (`NormalizedCarPosition`) and lap clock, comparison starts at the start/finish line (out laps and returns to the pits are skipped), clock stops while paused |
+| - | - | Delta pane rescales to the lap's delta (symmetric around zero), back to +/-1 s on a new lap |
+| - | - | Pedal traces of saved laps and replays shown at their true value (a 1 % input is no longer drawn as 100 %) |
 | - | - | Two-racer comparison: Racer 1 from live AC, simulation or a saved lap; Racer 2 from any F1 lap or your own |
 | - | - | Track sector analysis per Grand Prix: reference sector times and live per-sector deltas |
 | - | - | Distance cursor across all three traces: hover readout of live vs reference values, pins with snapping and red markers |
@@ -270,20 +294,16 @@ OpenATLAS/
 | - | - | Menu bar (File / Session / View / Help) with keyboard shortcuts; START / PAUSE / STOP / RESET controls; data source indicator; scrollable sidebar |
 | - | - | Simulation and saved-lap replay with pause/resume |
 | - | - | REC captures complete laps in memory with reasons for skipped laps; SAVE dialog (save / save all / discard) and unsaved-lap prompt on exit |
-| - | - | Floating widget over the game (frosted glass, never takes focus) with live delta, speed, gear, lap time, REC status and controls; global hotkeys |
+| - | - | Floating widget over the game (translucent, never takes focus) with live delta, speed, gear, lap time, REC status and controls; global hotkeys |
 
 ### Remaining
 
 | Phase | Task | Description |
 |---|---|---|
-| - | - | AC session tracking: live lap distance from AC's own lap position (`NormalizedCarPosition`) instead of integrating speed, automatic lap start at the line, pause and pit lane handling |
-| - | - | Fix pedal scaling in `LiveDeltaEngine`: values of 1 % in saved/reference laps are treated as 0-1 fractions and shown as 100 % |
 | - | - | In-game validation of live recording (REC) and of CSV import with real Telemetrick / Sim Racing Telemetry / MoTeC exports |
 | - | - | v1 release: self-contained Windows build and installer (e.g. Inno Setup), My Laps moved to the user's Documents folder (Program Files is read-only), version number and app icon |
 | - | - | Release decisions: code signing (Windows SmartScreen warning) and the terms for redistributing F1 timing data |
-| 5 | 5.1 | Head-up delta bar widget (large centered +/- seconds display with green/red coloring) |
-| 5 | 5.2 | Corner analysis table (per-corner splits: apex speed, braking point, throttle pickup); corner positions are already in `track.json` |
-| 5 | 5.3 | Export laps as `.csv` (Parquet saving is done) |
+| 5 | 5.3 | Optional: export laps as `.csv` (Parquet saving is done) |
 | 5 | - | Phase 5 deliverable: architecture diagrams, performance benchmarks (CPU / allocations) and a demo video of a sim lap over an F1 trace |
 | - | - | Optional: direct MoTeC `.ld` import; corner names in `track.json`; more seasons via FastF1 with an F1TV sign-in (only 2021-2022 download without one); comparing more than two laps |
 

@@ -58,7 +58,7 @@ namespace OpenATLAS.Tests.Engine
                 simDistance: 100f,
                 simTime: 1.85f,
                 simSpeed: 210f,
-                simThrottle: 1.0f,
+                simThrottle: 100f,
                 simBrake: 0.0f,
                 simGear: 4,
                 simRpm: 9200
@@ -68,7 +68,7 @@ namespace OpenATLAS.Tests.Engine
             Assert.Equal(0.15f, result.DeltaTime, precision: 3);
             Assert.True(result.IsAhead, "Sim should be marked as ahead when delta is positive.");
             Assert.Equal(100f, result.RefThrottle);
-            Assert.Equal(100f, result.SimThrottle); // 1.0f normalized to 100%
+            Assert.Equal(100f, result.SimThrottle);
             Assert.Equal(200f, result.RefSpeed);
             Assert.Equal(210f, result.SimSpeed);
         }
@@ -125,6 +125,23 @@ namespace OpenATLAS.Tests.Engine
             // Ring buffer populated
             Assert.Equal(1, ringBuffer.Count);
             Assert.Equal(result.DeltaTime, ringBuffer[0].DeltaTime);
+
+            // Raw 0-1 pedal converted to %
+            Assert.Equal(100f, result.SimThrottle);
+        }
+
+        [Fact]
+        public void Calculate_KeepsSmallPedalPercentages()
+        {
+            // Saved laps and replays are already in %: a light 1 % brake must stay 1 %, not become 100 %
+            var engine = new LiveDeltaEngine(CreateMockReferenceLap());
+
+            LiveDeltaSnapshot result = engine.Calculate(
+                simDistance: 100f, simTime: 2f, simSpeed: 200f,
+                simThrottle: 1f, simBrake: 0.5f, simGear: 4, simRpm: 9000);
+
+            Assert.Equal(1f, result.SimThrottle);
+            Assert.Equal(0.5f, result.SimBrake);
         }
 
         [Fact]
@@ -191,7 +208,7 @@ namespace OpenATLAS.Tests.Engine
                 simTime: simTime,
                 simSpeed: 338f,
                 simThrottle: 0f,
-                simBrake: 0.80f,
+                simBrake: 80f,
                 simGear: 7,
                 simRpm: 11000
             );
